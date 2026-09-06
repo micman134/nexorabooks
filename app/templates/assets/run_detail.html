@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ run.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Depreciation — {{ run.period_label }}
+      <span class="badge {{ run.status|status_class }}">{{ run.status|lower }}</span></h1>
+    <div class="muted small">{{ run.number }} · charged to {{ run.date|dt }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/assets/depreciation/{{ run.id }}?format=csv">Export</a>
+    <a class="btn" href="/assets/depreciation">All runs</a>
+  </div>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Charge for the month</div>
+    <div class="value">{{ run.total|money }}</div></div>
+  <div class="stat"><div class="label">Assets charged</div><div class="value">{{ run.asset_count }}</div></div>
+  <div class="stat"><div class="label">Journal entry</div>
+    <div class="value" style="font-size:1.1rem">
+      {% if entry %}<a href="/journals/{{ entry.id }}">{{ entry.number }}</a>{% else %}—{% endif %}</div>
+    <div class="sub">{{ 'Posted to the ledger' if entry else 'Nothing posted yet' }}</div></div>
+</div>
+
+{% if run.status == 'DRAFT' and can(user, 'journal') %}
+<div class="alert alert-info no-print">
+  <b>Nothing has been posted yet.</b> Check the figures below, then post them.
+  <div class="btn-row" style="margin-top:.6rem">
+    <form method="post" action="/assets/depreciation/{{ run.id }}/post">
+      <button class="btn btn-primary" type="submit">Post {{ run.total|money }} to the ledger</button>
+    </form>
+    <form method="post" action="/assets/depreciation/{{ run.id }}/delete"
+          onsubmit="return confirm('Delete this draft run? Nothing has been posted, so nothing is lost.')">
+      <button class="btn btn-danger" type="submit">Delete the draft</button>
+    </form>
+  </div>
+</div>
+{% elif run.status == 'POSTED' and can(user, 'void') %}
+<div class="card no-print"><div class="card-body">
+  <form method="post" action="/assets/depreciation/{{ run.id }}/void"
+        onsubmit="return confirm('Reverse {{ run.number }}? The entry stays in the ledger with a reversal against it, and {{ run.period_label }} can be run again.')">
+    <button class="btn btn-danger" type="submit">Reverse this run</button>
+    <span class="muted small">Puts the depreciation back on every asset and lets you run the month again.</span>
+  </form>
+</div></div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><h3>What each asset was charged</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Number</th><th>Asset</th><th>Category</th><th class="num">Months</th>
+        <th class="num">Net book value before</th><th class="num">Charge</th>
+        <th class="num">Net book value after</th></tr></thead>
+      <tbody>
+        {% for l in run.lines %}
+        <tr>
+          <td class="mono">{{ l.asset.number }}</td>
+          <td><a href="/assets/{{ l.asset.id }}">{{ l.asset.name }}</a></td>
+          <td class="small muted">{{ l.asset.category.name if l.asset.category else '—' }}</td>
+          <td class="num">{{ l.months_charged }}{% if l.months_charged > 1 %}
+            <span class="badge badge-part">catch-up</span>{% endif %}</td>
+          <td class="num muted">{{ l.nbv_before|money }}</td>
+          <td class="num">{{ l.amount|money }}</td>
+          <td class="num">{{ l.nbv_after|money }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">
+          Nothing to charge for {{ run.period_label }} — every asset is either not yet in service,
+          already charged for this month, or fully written down.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+      {% if run.lines %}
+      <tfoot><tr><th colspan="5">Total</th><th class="num">{{ run.total|money }}</th><th></th></tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

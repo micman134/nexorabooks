@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Check the statement{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Check what was read</h1>
+    <div class="muted small">{{ filename }} · {{ bank.name }} · nothing has been saved yet</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/banking/{{ bank.id }}/import">Choose a different file</a>
+  </div>
+</div>
+
+{% for problem in reading.problems %}
+<div class="alert alert-warning">{{ problem }}</div>
+{% endfor %}
+
+{% if reading.date_ambiguous %}
+<div class="alert alert-warning">
+  <strong>The dates could be read either way round.</strong>
+  Every date in this file has a day of twelve or less, so
+  <code>{{ reading.first_date|dt('%d/%m/%Y') }}</code> could be
+  {{ reading.first_date|dt('%-d %B') }} or {{ reading.first_date|dt('%B %-d') }}.
+  Check the first few rows below against your statement and set it here.
+</div>
+{% endif %}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent">
+    <div class="label">Transactions read</div>
+    <div class="value">{{ reading.lines|length }}</div>
+    <div class="sub">{{ reading.first_date|dt }} – {{ reading.last_date|dt }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Money in</div>
+    <div class="value pos">{{ reading.total_in|money }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Money out</div>
+    <div class="value neg">{{ reading.total_out|money }}</div>
+  </div>
+  <div class="stat {{ 'danger' if already else '' }}">
+    <div class="label">Already imported</div>
+    <div class="value">{{ already }}</div>
+    <div class="sub">{{ 'These will be skipped' if already else 'Nothing seen before' }}</div>
+  </div>
+</div>
+
+{# ---- does it add up? ------------------------------------------------- #}
+<div class="card">
+  <div class="card-head">
+    <h2>Does it add up?</h2>
+    <span class="muted small">The bank's own figures, checked against each other.</span>
+  </div>
+  <div class="card-body">
+    {% set opening = reading.opening_balance %}
+    {% set closing = reading.closing_balance %}
+    {% if opening is not none and closing is not none %}
+      {% set expected = opening + reading.net %}
+      <table class="data">
+        <tr><td>Balance before the first line</td><td class="num">{{ opening|money }}</td></tr>
+        <tr><td>Money in</td><td class="num pos">{{ reading.total_in|money }}</td></tr>
+        <tr><td>Money out</td><td class="num neg">({{ reading.total_out|money }})</td></tr>
+        <tr class="total"><td>Which should leave</td><td class="num">{{ expected|money }}</td></tr>
+        <tr class="grand"><td>The bank says the balance is</td><td class="num">{{ closing|money }}</td></tr>
+      </table>
+      {% if expected == closing %}
+        <div class="alert alert-success" style="margin-top:1rem">
+          Every line was read correctly — the amounts add up exactly to the closing
+          balance the bank printed.
+        </div>
+      {% else %}
+        <div class="alert alert-danger" style="margin-top:1rem">
+          <strong>Out by {{ (closing - expected)|money }}.</strong>
+          Either some rows were not read, or the debits and credits are the wrong
+          way round. Look at the rows below before going on — if the signs are
+          reversed, tick the box at the bottom.
+        </div>
+      {% endif %}
+    {% else %}
+      <p class="muted">This file has no running balance in it, so there is nothing to
+        check the reading against. Look over the rows below yourself.</p>
+    {% endif %}
+
+    <p class="muted small" style="margin-top:.75rem">
+      Your books say this account held {{ book_balance|money }} on
+      {{ reading.last_date|dt }}. Any difference is what has not been recorded yet —
+      which is exactly what this import is for.
+    </p>
+  </div>
+</div>
+
+{# ---- the shape of the month ------------------------------------------ #}
+{% if chart %}
+<div class="card">
+  <div class="card-head">
+    <h2>Money in and out</h2>
+    <span class="muted small">
+      <span class="swatch swatch-in"></span> in
+      <span class="swatch swatch-out"></span> out
+      <span class="swatch swatch-bal"></span> balance
+    </span>
+  </div>
+  <div class="card-body">
+    <div class="chart-wrap">{{ chart|safe }}</div>
+    <div class="chart-labels">
+      {% for b in buckets %}<span>{{ b.label }}</span>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ---- the rows -------------------------------------------------------- #}
+<div class="card">
+  <div class="card-head">
+    <h2>The transactions</h2>
+    <span class="muted small">
+      Columns found:
+      {% for key, name in reading.columns.items() %}<code>{{ name }}</code>{{ ' → ' }}{{ key }}{{ '; ' if not loop.last }}{% endfor %}
+    </span>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Date</th><th>Description</th><th>Reference</th>
+        <th class="num">Amount</th><th class="num">Balance</th></tr></thead>
+      <tbody>
+        {% for line in reading.lines %}
+        <tr>
+          <td class="nowrap">{{ line.date|dt }}</td>
+          <td>{{ line.description }}</td>
+          <td class="small muted">{{ line.reference }}</td>
+          <td class="num {{ 'pos' if line.amount > 0 else 'neg' }}">{{ line.amount|money }}</td>
+          <td class="num muted">{{ line.balance|money if line.balance is not none else '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<form method="post" action="/banking/{{ bank.id }}/import/confirm" class="card no-print">
+  <div class="card-body">
+    <div class="filters" style="margin-bottom:.75rem">
+      <div class="field">
+        <label for="date_order">Dates in this file are</label>
+        <select id="date_order" name="date_order">
+          <option value="dmy" {{ 'selected' if reading.date_order == 'dmy' }}>Day first — 31/12/2026</option>
+          <option value="mdy" {{ 'selected' if reading.date_order == 'mdy' }}>Month first — 12/31/2026</option>
+          <option value="ymd" {{ 'selected' if reading.date_order == 'ymd' }}>Year first — 2026-12-31</option>
+        </select>
+      </div>
+      <div class="field" style="align-self:center">
+        <label><input type="checkbox" name="flip" value="1"> The money in and out are the wrong way round</label>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">
+      Bring in {{ reading.lines|length - already }} transaction{{ 's' if (reading.lines|length - already) != 1 }}
+    </button>
+    <a class="btn" href="/banking/{{ bank.id }}/import">Cancel</a>
+    <div class="hint">Bringing them in still posts nothing. The next screen goes
+      through them one at a time.</div>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_macros.html" import letterhead %}
+{% block title %}{{ bill.number }}{% endblock %}
+{% block content %}
+<div class="page-head no-print">
+  <h1>{{ label }} {{ bill.number }}</h1>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+    <a class="btn" href="javascript:history.back()">Back</a>
+  </div>
+</div>
+
+<div class="doc">
+  <div class="doc-head">
+    {{ letterhead(company) }}
+    <div class="doc-title">
+      <h1>{{ label }}</h1>
+      <table style="margin-left:auto; font-size:13px">
+        <tr><td class="muted right" style="padding-right:.5rem">Number</td><td class="strong">{{ bill.number }}</td></tr>
+        <tr><td class="muted right" style="padding-right:.5rem">Date</td><td>{{ bill.date|dt }}</td></tr>
+        {% if bill.due_date %}<tr><td class="muted right" style="padding-right:.5rem">Due</td><td>{{ bill.due_date|dt }}</td></tr>{% endif %}
+      </table>
+    </div>
+  </div>
+
+  <div class="doc-parties">
+    <div>
+      <div class="lbl">{{ 'Supplier' if bill.doc_type != 'PO' else 'To' }}</div>
+      <strong>{{ bill.contact.name }}</strong><br>
+      <span class="muted small">{{ bill.contact.address }}
+        {% if bill.contact.tin %}<br>TIN: {{ bill.contact.tin }}{% endif %}</span>
+    </div>
+    <div class="right">
+      <div class="lbl">Total</div>
+      <div style="font-size:1.7rem; font-weight:700; color:var(--green-dark)">{{ bill.total|money }}</div>
+    </div>
+  </div>
+
+  <table class="data">
+    <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit cost</th>
+      <th class="num">VAT</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      {% for l in bill.lines %}
+      <tr><td>{{ l.description }}</td><td class="num">{{ l.qty|qty }}</td>
+        <td class="num">{{ l.unit_price|money }}</td><td class="num">{{ l.vat_amount|money }}</td>
+        <td class="num">{{ l.net|money }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="totals" style="margin-top:1rem">
+    <table>
+      <tr><td>Subtotal</td><td>{{ bill.subtotal|money }}</td></tr>
+      <tr><td>VAT</td><td>{{ bill.vat_total|money }}</td></tr>
+      <tr class="grand"><td>Total</td><td>{{ bill.total|money }}</td></tr>
+      {% if bill.wht_total %}
+      <tr><td class="muted">Less WHT withheld</td><td class="muted">({{ bill.wht_total|money }})</td></tr>
+      <tr class="strong"><td>Net payable</td><td>{{ (bill.total - bill.wht_total)|money }}</td></tr>
+      {% endif %}
+    </table>
+  </div>
+
+  <div class="doc-foot"><p>{{ company.invoice_footer }}</p></div>
+</div>
+{% endblock %}

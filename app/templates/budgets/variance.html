@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter, letterhead %}
+{% block title %}Budget vs actual{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Budget against actual</h1>
+    <div class="muted small">{{ company.name }} · {{ budget.name }} · {{ start|dt }} to {{ end|dt }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="?budget={{ budget.id }}&start={{ start }}&end={{ end }}&format=csv">Export CSV</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+    {% if can(user, 'journal') %}<a class="btn" href="/budgets/{{ budget.id }}/edit">Edit figures</a>{% endif %}
+  </div>
+</div>
+
+{% set budget_picker %}
+<div class="field"><label>Budget</label>
+  <select name="budget">
+    {% for b in budgets %}
+    <option value="{{ b.id }}" {{ 'selected' if b.id == budget.id }}>{{ b.name }}</option>
+    {% endfor %}
+  </select></div>
+{% endset %}
+{{ period_filter(preset, start, end, budget_picker) }}
+
+<div class="print-only">{{ letterhead(company) }}</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Revenue against plan</div>
+    <div class="value">{{ report.revenue.actual|money }}</div>
+    <div class="sub">Planned {{ report.revenue.budget|money }}</div></div>
+  <div class="stat"><div class="label">Costs against plan</div>
+    <div class="value">{{ (report.cost_of_sales.actual + report.expenses.actual)|money }}</div>
+    <div class="sub">Planned {{ (report.cost_of_sales.budget + report.expenses.budget)|money }}</div></div>
+  <div class="stat {{ 'accent' if report.profit_variance >= 0 else 'danger' }}">
+    <div class="label">Profit against plan</div>
+    <div class="value {{ 'neg' if report.actual_profit < 0 }}">{{ report.actual_profit|money }}</div>
+    <div class="sub">Planned {{ report.budget_profit|money }}</div></div>
+  <div class="stat {{ 'accent' if report.profit_variance >= 0 else 'danger' }}">
+    <div class="label">{{ 'Ahead by' if report.profit_variance >= 0 else 'Behind by' }}</div>
+    <div class="value">{{ report.profit_variance|abs|money }}</div>
+    <div class="sub">{{ 'Favourable' if report.profit_variance >= 0 else 'Adverse' }}</div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th style="width:90px">Code</th><th>Account</th>
+        <th class="num">Budget</th><th class="num">Actual</th>
+        <th class="num">Variance</th><th class="num">%</th><th></th></tr></thead>
+      <tbody>
+        {% for section in report.sections %}
+        {% if section.rows %}
+        <tr class="section"><td colspan="7"><b>{{ section.title }}</b></td></tr>
+        {% for r in section.rows %}
+        <tr>
+          <td class="mono">{{ r.account.code }}</td>
+          <td><a href="/reports/general-ledger?account={{ r.account.id }}&start={{ start }}&end={{ end }}">{{ r.account.name }}</a></td>
+          <td class="num">{{ r.budget|money if r.budget else '—' }}</td>
+          <td class="num">{{ r.actual|money if r.actual else '—' }}</td>
+          <td class="num {{ '' if r.is_favourable or not r.is_material else 'neg' }}">
+            {{ r.variance|money if r.variance else '—' }}</td>
+          <td class="num small muted">{{ r.variance_pct }}</td>
+          <td class="small">
+            {% if r.is_material %}
+            <span class="badge {{ 'badge-paid' if r.is_favourable else 'badge-void' }}">
+              {{ 'favourable' if r.is_favourable else 'adverse' }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="subtotal">
+          <td></td><th>{{ section.title }} total</th>
+          <th class="num">{{ section.budget|money }}</th>
+          <th class="num">{{ section.actual|money }}</th>
+          <th class="num">{{ section.variance|money }}</th>
+          <th colspan="2"></th>
+        </tr>
+        {% endif %}
+        {% else %}
+        <tr><td colspan="7" class="empty">
+          Nothing budgeted or posted in this period.
+          {% if can(user, 'journal') %}<a href="/budgets/{{ budget.id }}/edit">Fill in the figures</a>.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="grand">
+          <td></td><th>Profit</th>
+          <th class="num">{{ report.budget_profit|money }}</th>
+          <th class="num">{{ report.actual_profit|money }}</th>
+          <th class="num {{ '' if report.profit_variance >= 0 else 'neg' }}">{{ report.profit_variance|money }}</th>
+          <th colspan="2" class="small">
+            {{ 'ahead of plan' if report.profit_variance >= 0 else 'behind plan' }}</th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>Month by month</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Month</th><th class="num">Planned profit</th>
+        <th class="num">Actual profit</th><th class="num">Difference</th><th></th></tr></thead>
+      <tbody>
+        {% for period, planned, actual in monthly %}
+        <tr>
+          <td>{{ month_label(period) }}</td>
+          <td class="num">{{ planned|money if planned else '—' }}</td>
+          <td class="num">{{ actual|money if actual else '—' }}</td>
+          <td class="num {{ 'neg' if actual - planned < 0 }}">{{ (actual - planned)|money }}</td>
+          <td style="width:38%">
+            {% set worst = monthly | map(attribute=2) | map('abs') | list %}
+            {% set scale = ([worst|max, 1]|max) %}
+            <div class="bar-track">
+              <div class="bar {{ 'bar-good' if actual >= planned else 'bar-bad' }}"
+                   style="width:{{ ((actual|abs) * 100 / scale)|round(1) }}%"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  .bar-track { background: #eef1f3; border-radius: 3px; height: 10px; overflow: hidden; }
+  .bar { height: 100%; background: var(--green); border-radius: 3px; }
+  .bar-bad { background: var(--danger); }
+  tr.subtotal th { border-top: 1px solid var(--line); }
+</style>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Customers' if kind == 'customer' else ('Suppliers' if kind == 'vendor' else 'Contacts') }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ 'Customers' if kind == 'customer' else ('Suppliers' if kind == 'vendor' else 'All contacts') }}</h1>
+  <div class="actions">
+    {% if can(user, 'entry') %}<a class="btn btn-primary" href="/contacts/new?kind={{ kind }}">New {{ 'supplier' if kind == 'vendor' else 'customer' }}</a>{% endif %}
+  </div>
+</div>
+
+<div class="tabs">
+  <a href="/contacts?kind=customer" class="{{ 'active' if kind == 'customer' }}">Customers</a>
+  <a href="/contacts?kind=vendor" class="{{ 'active' if kind == 'vendor' }}">Suppliers</a>
+  <a href="/contacts?kind=all" class="{{ 'active' if kind not in ('customer','vendor') }}">Everyone</a>
+</div>
+
+<form class="filters" method="get">
+  <input type="hidden" name="kind" value="{{ kind }}">
+  <div class="field" style="flex:1"><label>Search</label>
+    <input type="search" name="q" value="{{ q }}" placeholder="Name, code, phone, email or Tax ID"></div>
+  <div class="check"><input type="checkbox" id="inact" name="inactive" value="1" {{ 'checked' if show_inactive }}>
+    <label for="inact">Include archived</label></div>
+  <button class="btn" type="submit">Search</button>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>Code</th><th>Name</th><th>Tax ID</th><th>Phone</th><th>Terms</th>
+          <th class="num">They owe you</th><th class="num">You owe them</th></tr>
+      </thead>
+      <tbody>
+        {% for c in contacts %}
+        <tr>
+          <td class="mono">{{ c.code }}</td>
+          <td>
+            <a href="/contacts/{{ c.id }}">{{ c.name }}</a>
+            {% if not c.is_active %}<span class="badge badge-void">archived</span>{% endif %}
+            {% if c.is_customer and c.is_vendor %}<span class="muted small">customer &amp; supplier</span>{% endif %}
+            {% if c.contact_person %}<div class="muted small">{{ c.contact_person }}</div>{% endif %}
+          </td>
+          <td class="mono small">{{ c.tin or '—' }}{% if not c.tin %}<div class="muted small">WHT uplift applies</div>{% endif %}</td>
+          <td>{{ c.phone or '—' }}</td>
+          <td>{{ c.payment_terms_days }} days</td>
+          <td class="num">{{ ar.get(c.id, 0)|money if ar.get(c.id) else '—' }}</td>
+          <td class="num">{{ ap.get(c.id, 0)|money if ap.get(c.id) else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">
+          No contacts yet.
+          {% if can(user, 'entry') %}<a href="/contacts/new?kind={{ kind }}">Add the first one</a>.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

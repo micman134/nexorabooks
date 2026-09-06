@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Companies{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Companies</h1>
+    <div class="muted small">Each company keeps its own books, its own logo, its own staff
+      and its own backups. Nothing is shared between them.</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="?archived={{ 0 if show_archived else 1 }}">
+      {{ 'Hide archived' if show_archived else 'Show archived' }}</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Company</th><th>Folder</th><th>Created</th><th>Last opened</th>
+        <th class="num">Total assets</th><th class="num">Size</th><th></th></tr></thead>
+      <tbody>
+        {% for c in refs %}
+        {% set s = summaries.get(c.slug) %}
+        <tr>
+          <td>
+            <strong>{{ s.name if s else c.name }}</strong>
+            {% if c.slug == company_slug %}<span class="badge badge-paid">open now</span>{% endif %}
+            {% if c.is_archived %}<span class="badge badge-void">archived</span>{% endif %}
+            {% if s and not s.balances %}<div class="neg small">Books do not balance — please check</div>{% endif %}
+          </td>
+          <td class="mono small">{{ c.slug }}</td>
+          <td class="small">{{ c.created_at[:10] if c.created_at else '—' }}</td>
+          <td class="small">{{ c.last_opened[:10] if c.last_opened else 'Never' }}</td>
+          <td class="num">{{ s.assets|money if s else '—' }}</td>
+          <td class="num small">{{ (c.size_bytes / 1024) | round | int }} KB</td>
+          <td class="right nowrap">
+            {% if not c.is_archived and c.slug != company_slug %}
+            <a class="btn btn-sm btn-primary" href="/companies/switch/{{ c.slug }}">Open</a>
+            {% endif %}
+            {% if can(user, 'admin') %}
+            <button class="btn btn-sm" type="button"
+                    onclick="renameCompany('{{ c.slug }}', {{ (s.name if s else c.name)|tojson }})">Rename</button>
+            <form method="post" action="/companies/{{ c.slug }}/archive" style="display:inline"
+                  onsubmit="return confirm({{ ('Archive ' ~ (s.name if s else c.name) ~ '? Its books stay on disk and can be restored at any time.')|tojson if not c.is_archived else ('Restore ' ~ c.name ~ '?')|tojson }})">
+              <input type="hidden" name="archived" value="{{ 0 if c.is_archived else 1 }}">
+              <button class="btn btn-sm {{ '' if c.is_archived else 'btn-danger' }}" type="submit">
+                {{ 'Restore' if c.is_archived else 'Archive' }}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if can(user, 'admin') %}
+<div class="card" style="max-width:760px">
+  <div class="card-head"><h2>Start another company</h2></div>
+  <form class="card-body" method="post" action="/companies/create">
+    <div class="field-row">
+      <div class="field" style="flex:2"><label for="nm">Company name *</label>
+        <input id="nm" name="name" required placeholder="e.g. Adeyemi Logistics Ltd"></div>
+      <div class="field"><label for="cp">Copy setup from</label>
+        <select id="cp" name="copy_setup_from">
+          <option value="">Start with the standard Nigerian setup</option>
+          {% for c in refs if not c.is_archived %}
+          <option value="{{ c.slug }}">{{ summaries.get(c.slug).name if summaries.get(c.slug) else c.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="hint">Copies the chart of accounts, tax codes and payroll rates only —
+          never customers, transactions or staff.</div></div>
+    </div>
+    <button class="btn btn-primary" type="submit">Create the company</button>
+    <p class="hint" style="margin-top:.75rem">
+      The new company starts with the <strong>admin / admin123</strong> sign-in, exactly like a
+      fresh installation. Change it as soon as you open the books.
+    </p>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><h3>How this works</h3></div>
+  <div class="card-body">
+    <table class="data">
+      <tr><th style="width:32%">Separate everything</th>
+        <td>Each company has its own chart of accounts, customers, suppliers, stock, staff,
+          invoice numbering and user accounts. A mistake in one can never reach another.</td></tr>
+      <tr><th>Signing in</th>
+        <td>Because user accounts belong to a company's books, opening a different company
+          asks you to sign in again. That is deliberate — it stops someone seeing books
+          they were never given access to.</td></tr>
+      <tr><th>Backups</th>
+        <td>Backup and restore under Settings always act on the company you have open.
+          Take one for each company.</td></tr>
+      <tr><th>Where they live</th>
+        <td class="mono small">{{ data_dir if data_dir is defined else 'Settings shows the folder for the open company' }}</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="hide">
+  <form id="rename-form" method="post">
+    <input type="hidden" name="name" id="rename-name">
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function renameCompany(slug, current) {
+  var name = prompt('New name for this company:', current);
+  if (!name || !name.trim()) return;
+  var f = document.getElementById('rename-form');
+  f.action = '/companies/' + slug + '/rename';
+  document.getElementById('rename-name').value = name.trim();
+  f.submit();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}{{ 'New ' ~ label|lower if is_new else inv.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'New ' ~ label|lower if is_new else 'Edit ' ~ label|lower ~ ' ' ~ inv.number }}</h1>
+    {% if not is_new %}<div class="muted small">Draft — nothing has been posted to the ledger yet.</div>{% endif %}
+  </div>
+</div>
+
+<form method="post" action="/sales/{{ slug }}/save">
+  {% if not is_new %}<input type="hidden" name="id" value="{{ inv.id }}">{% endif %}
+
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field"><label for="c">Customer *</label>
+          <select id="c" name="contact_id" required autofocus>
+            <option value="">— choose a customer —</option>
+            {% for c in customers %}
+            <option value="{{ c.id }}" {{ 'selected' if inv.contact_id == c.id }}>{{ c.name }}{{ ' — ' ~ c.code }}</option>
+            {% endfor %}
+          </select>
+          <div class="hint"><a href="/contacts/new?kind=customer" target="_blank">Add a new customer</a></div>
+        </div>
+        <div class="field"><label for="d">{{ label }} date</label>
+          <input id="d" type="date" name="date" value="{{ (inv.date or today()).isoformat() }}"></div>
+        <div class="field"><label for="dd">{{ 'Valid until' if inv.doc_type == 'QUOTE' else 'Due date' }}</label>
+          <input id="dd" type="date" name="due_date" value="{{ inv.due_date.isoformat() if inv.due_date else '' }}"></div>
+        <div class="field"><label for="po">Customer PO number</label>
+          <input id="po" name="po_number" value="{{ inv.po_number or '' }}"></div>
+        <div class="field"><label for="rf">Reference</label>
+          <input id="rf" name="reference" value="{{ inv.reference or '' }}"></div>
+        {% if locations|length > 1 %}
+        <div class="field"><label for="loc">Goods go out from</label>
+          <select id="loc" name="location_id">
+            {% for l in locations %}
+            <option value="{{ l.id }}"
+              {{ 'selected' if inv.location_id == l.id or (not inv.location_id and l.is_default) }}>{{ l.name }}</option>
+            {% endfor %}
+          </select></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Lines</h2>
+      <div class="actions"><button class="btn btn-sm" id="add-row" type="button">Add a line</button></div>
+    </div>
+    <div class="card-body">
+      <div class="table-wrap">
+        <table class="lines">
+          <thead>
+            <tr>
+              <th style="width:16%">Item</th>
+              <th style="width:21%">Description</th>
+              <th style="width:7%" class="num">Qty</th>
+              <th style="width:11%" class="num">Unit price</th>
+              <th style="width:6%" class="num">Disc %</th>
+              <th style="width:14%">Revenue account</th>
+              <th style="width:13%">VAT</th>
+              {% if projects %}<th style="width:13%">Job</th>{% endif %}
+              <th style="width:10%" class="num">Amount</th>
+              {% if needs_depth %}<th style="width:14%">Batch / serials</th>{% endif %}
+              <th style="width:34px"></th>
+            </tr>
+          </thead>
+          <tbody id="line-body">
+            {% for line in inv.lines %}
+            <tr class="line-row">
+              <td>
+                <select class="l-item" name="line_item_id">
+                  <option value="">—</option>
+                  {% for it in items %}
+                  <option value="{{ it.id }}" {{ 'selected' if line.item_id == it.id }}
+                    data-name="{{ it.name }}" data-price="{{ it.sale_price|naira }}"
+                    data-tax="{{ it.sale_tax_code_id or '' }}" data-account="{{ it.sales_account_id or '' }}">{{ it.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input class="l-desc" name="line_description" value="{{ line.description or '' }}"></td>
+              <td><input class="l-qty num" name="line_qty" value="{{ line.qty|qty if line.qty else '' }}"></td>
+              <td><input class="l-price num" name="line_price" value="{{ line.unit_price|naira if line.unit_price else '' }}"></td>
+              <td><input class="l-disc num" name="line_disc" value="{{ line.discount_pct or '0' }}"></td>
+              <td>
+                <select class="l-account" name="line_account">
+                  <option value="">Default</option>
+                  {% for a in accounts %}
+                  <option value="{{ a.id }}" {{ 'selected' if line.account_id == a.id }}>{{ a.code }} {{ a.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <select class="l-tax" name="line_tax">
+                  <option value="" data-rate="0">No VAT</option>
+                  {% for t in vat_codes %}
+                  <option value="{{ t.id }}" data-rate="{{ t.rate }}"
+                    {{ 'selected' if line.tax_code_id == t.id or (not line.tax_code_id and loop.first and company.is_vat_registered and not line.id) }}>{{ t.code }} ({{ t.rate }}%)</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                {# Job costing: only shown when the customer keeps projects, so a
+                   business that does not is never asked about one. #}
+                {% if projects %}
+                <select class="l-project" name="line_project">
+                  <option value="">— no job —</option>
+                  {% for pr in projects %}
+                  <option value="{{ pr.id }}" {{ 'selected' if line.project_id == pr.id }}>{{ pr.code }} {{ pr.name }}</option>
+                  {% endfor %}
+                </select>
+                {% endif %}
+              </td>
+              <td class="num l-total mono"></td>
+              {% if needs_depth %}
+              <td class="depth">
+                <input name="line_batch" value="{{ line.batch_no or '' }}" placeholder="Batch / lot">
+                <input name="line_serials" value="{{ line.serials or '' }}" placeholder="Serial numbers">
+              </td>
+              {% endif %}
+              <td class="rm"><button class="btn btn-sm rm-row" type="button" title="Remove this line">&times;</button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="totals" style="margin-top:1rem">
+        <table>
+          <tr><td>Subtotal</td><td id="t-subtotal">—</td></tr>
+          <tr id="discount-row" style="display:none"><td>Discount</td><td id="t-discount">—</td></tr>
+          <tr><td>VAT</td><td id="t-vat">—</td></tr>
+          <tr class="grand"><td>Total</td><td id="t-total">—</td></tr>
+          <tr id="wht-row" style="display:none"><td class="muted">Less WHT the customer will deduct</td><td id="t-wht" class="muted">—</td></tr>
+          <tr id="net-row" style="display:none"><td class="muted">Expected cash</td><td id="t-net" class="muted">—</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field"><label for="wht_code_id">Withholding tax the customer will deduct</label>
+          <select id="wht_code_id" name="wht_code_id">
+            <option value="" data-rate="0">None</option>
+            {% for w in wht_codes %}
+            <option value="{{ w.id }}" data-rate="{{ w.rate }}" {{ 'selected' if inv.wht_code_id == w.id }}>{{ w.name }} — {{ w.rate }}%</option>
+            {% endfor %}
+          </select>
+          <div class="hint">Shown on the invoice and used to prefill the receipt. It does not change what is posted now.</div>
+        </div>
+        <div class="field"><label for="memo">Note to the customer</label>
+          <textarea id="memo" name="memo">{{ inv.memo or '' }}</textarea></div>
+        <div class="field"><label for="terms">Terms</label>
+          <textarea id="terms" name="terms">{{ inv.terms or '' }}</textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" type="submit" name="action" value="save">Save as draft</button>
+    {% if inv.doc_type != 'QUOTE' %}
+    <button class="btn btn-primary" type="submit" name="action" value="post">Save and post to the ledger</button>
+    {% endif %}
+    <a class="btn" href="/sales/{{ slug }}{{ '/' ~ inv.id if not is_new }}">Cancel</a>
+  </div>
+</form>
+
+{% if needs_depth %}
+<style>
+  table.lines td.depth input { font-size: 12px; padding: .2rem .35rem; margin-bottom: .15rem; }
+</style>
+<p class="muted small">
+  Batch and serial columns are only needed for items set to track them —
+  leave them empty for everything else.
+</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/lines.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var wht = document.getElementById('wht_code_id');
+    function toggle() {
+      var on = wht && wht.value;
+      document.getElementById('net-row').style.display = on ? '' : 'none';
+    }
+    if (wht) wht.addEventListener('change', toggle);
+    toggle();
+  });
+</script>
+{% endblock %}

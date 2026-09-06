@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{{ 'New contact' if is_new else contact.name }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>{{ 'New contact' if is_new else 'Edit ' + contact.name }}</h1></div>
+
+<form method="post" action="/contacts/save" style="max-width:900px">
+  {% if not is_new %}<input type="hidden" name="id" value="{{ contact.id }}">{% endif %}
+
+  <fieldset>
+    <legend>Who they are</legend>
+    <div class="field-row">
+      <div class="field"><label for="name">Name *</label>
+        <input id="name" name="name" value="{{ contact.name }}" required autofocus></div>
+      <div class="field"><label for="code">Code</label>
+        <input id="code" name="code" value="{{ contact.code }}" placeholder="Assigned automatically"></div>
+      <div class="field"><label for="ct">Type</label>
+        <select id="ct" name="contact_type">
+          <option value="COMPANY" {{ 'selected' if contact.contact_type == 'COMPANY' }}>Company</option>
+          <option value="INDIVIDUAL" {{ 'selected' if contact.contact_type == 'INDIVIDUAL' }}>Individual</option>
+        </select></div>
+    </div>
+    <div class="field-row">
+      <div class="check"><input type="checkbox" id="isc" name="is_customer" value="1" {{ 'checked' if contact.is_customer }}>
+        <label for="isc">They buy from us (customer)</label></div>
+      <div class="check"><input type="checkbox" id="isv" name="is_vendor" value="1" {{ 'checked' if contact.is_vendor }}>
+        <label for="isv">We buy from them (supplier)</label></div>
+      <div class="check"><input type="checkbox" id="isa" name="is_active" value="1" {{ 'checked' if contact.is_active or is_new }}>
+        <label for="isa">Active</label></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tax</legend>
+    <div class="field-row">
+      <div class="field"><label for="tin">Tax Identification Number (TIN)</label>
+        <input id="tin" name="tin" value="{{ contact.tin }}">
+        <div class="hint">Without a Tax ID, withholding tax is charged at double the normal rate (capped at 20%).</div></div>
+      <div class="field"><label for="rc">RC number</label>
+        <input id="rc" name="rc_number" value="{{ contact.rc_number }}"></div>
+      <div class="field"><label for="wht">Default withholding tax</label>
+        <select id="wht" name="default_wht_code_id">
+          <option value="">None</option>
+          {% for w in wht_codes %}
+          <option value="{{ w.id }}" {{ 'selected' if contact.default_wht_code_id == w.id }}>{{ w.name }} — {{ w.rate }}%</option>
+          {% endfor %}
+        </select></div>
+    </div>
+    <div class="check"><input type="checkbox" id="small" name="is_small_company" value="1" {{ 'checked' if contact.is_small_company }}>
+      <label for="small">Small company — turnover ₦50 million or less</label></div>
+    <div class="hint">A small company with a valid Tax ID does not suffer withholding tax on transactions of ₦2,000,000 or less.</div>
+    <div class="check" style="margin-top:.5rem">
+      <input type="checkbox" id="whvat" name="withholds_vat" value="1"
+             {{ 'checked' if contact.withholds_vat }}>
+      <label for="whvat">This customer withholds VAT at source</label></div>
+    <div class="hint">Government agencies and companies in oil and gas are appointed by the NRS
+      to withhold the VAT and remit it themselves. They pay you net of VAT; the VAT comes back
+      as a credit on your return, against the credit note they issue.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Contact details</legend>
+    <div class="field-row">
+      <div class="field"><label for="cp">Contact person</label><input id="cp" name="contact_person" value="{{ contact.contact_person }}"></div>
+      <div class="field"><label for="ph">Phone</label><input id="ph" name="phone" value="{{ contact.phone }}"></div>
+      <div class="field"><label for="em">Email</label><input id="em" type="email" name="email" value="{{ contact.email }}"></div>
+    </div>
+    <div class="field"><label for="ad">Address</label><textarea id="ad" name="address">{{ contact.address }}</textarea></div>
+    <div class="field-row">
+      <div class="field"><label for="ci">City</label><input id="ci" name="city" value="{{ contact.city }}"></div>
+      <div class="field"><label for="st">State</label><input id="st" name="state" value="{{ contact.state }}"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Trading terms</legend>
+    <div class="field-row">
+      <div class="field"><label for="pt">Payment terms (days)</label>
+        <input id="pt" type="number" name="payment_terms_days" value="{{ contact.payment_terms_days }}" min="0"></div>
+      <div class="field"><label for="cl">Credit limit</label>
+        <input id="cl" class="num" name="credit_limit" value="{{ contact.credit_limit|naira if contact.credit_limit else '' }}" placeholder="0.00"></div>
+      <div class="field"><label for="bn">Bank name</label><input id="bn" name="bank_name" value="{{ contact.bank_name }}"></div>
+      <div class="field"><label for="ba">Bank account number</label><input id="ba" name="bank_account_no" value="{{ contact.bank_account_no }}"></div>
+    </div>
+    <div class="field"><label for="no">Notes</label><textarea id="no" name="notes">{{ contact.notes }}</textarea></div>
+  </fieldset>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn" href="{{ '/contacts' if is_new else '/contacts/' ~ contact.id }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

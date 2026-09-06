@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Chart of accounts{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Chart of accounts</h1>
+  <div class="actions">
+    {% if can(user, 'admin') %}
+    <form method="post" action="/accounts/restore-defaults" style="display:inline">
+      <button class="btn" type="submit">Restore missing standard accounts</button></form>
+    {% endif %}
+    {% if can(user, 'journal') %}<a class="btn btn-primary" href="/accounts/new">New account</a>{% endif %}
+  </div>
+</div>
+
+<form class="filters" method="get">
+  <div class="field" style="flex:1"><label>Search</label>
+    <input type="search" name="q" value="{{ q }}" placeholder="Code or name"></div>
+  <div class="check"><input type="checkbox" id="inact" name="inactive" value="1" {{ 'checked' if show_inactive }}>
+    <label for="inact">Include archived</label></div>
+  <button class="btn" type="submit">Search</button>
+</form>
+
+{% for t in types %}
+{% set group = accounts | selectattr('type', 'equalto', t) | list %}
+{% if group %}
+<div class="card">
+  <div class="card-head"><h2>{{ t|title }}</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th style="width:90px">Code</th><th>Name</th><th>Category</th><th>Cash flow</th>
+        <th class="num">Balance</th><th></th></tr></thead>
+      <tbody>
+        {% for a in group %}
+        <tr>
+          <td class="mono">{{ a.code }}</td>
+          <td>
+            <a href="/reports/general-ledger?account={{ a.id }}">{{ a.name }}</a>
+            {% if a.is_system %}<span class="badge badge-open">system</span>{% endif %}
+            {% if not a.is_active %}<span class="badge badge-void">archived</span>{% endif %}
+          </td>
+          <td class="small">{{ a.subtype.replace('_', ' ')|title }}</td>
+          <td class="small">{{ a.cashflow_class|title }}</td>
+          <td class="num {{ 'neg' if values.get(a.id, 0) < 0 }}">{{ values.get(a.id, 0)|money if values.get(a.id) else '—' }}</td>
+          <td class="right nowrap">
+            {% if can(user, 'journal') %}
+            <a class="btn btn-sm" href="/accounts/{{ a.id }}/edit">Edit</a>
+            {% if not a.is_system or not a.is_active %}
+            <form method="post" action="/accounts/{{ a.id }}/archive" style="display:inline">
+              <button class="btn btn-sm" type="submit">{{ 'Restore' if not a.is_active else 'Archive' }}</button></form>
+            {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}

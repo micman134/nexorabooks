@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ bank.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ bank.name }}</h1>
+    <div class="muted small">{{ bank.bank_name }} {{ bank.account_number }} ·
+      {{ account.code }} — {{ account.name }}</div>
+  </div>
+  <div class="actions">
+    {% if can(user, 'journal') %}
+      <a class="btn btn-primary" href="/banking/{{ bank.id }}/import">Import a statement</a>
+      <a class="btn" href="/banking/{{ bank.id }}/reconcile">Reconcile</a>
+      <a class="btn" href="/banking/{{ bank.id }}/edit">Edit</a>
+    {% endif %}
+    <a class="btn" href="/banking">All accounts</a>
+  </div>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Opening balance {{ start|dt }}</div><div class="value">{{ opening|money }}</div></div>
+  <div class="stat accent"><div class="label">Closing balance {{ end|dt }}</div>
+    <div class="value {{ 'neg' if closing < 0 }}">{{ closing|money }}</div></div>
+  <div class="stat"><div class="label">Movement</div><div class="value">{{ (closing - opening)|money }}</div></div>
+</div>
+
+<form class="filters" method="get">
+  <div class="field"><label>From</label><input type="date" name="start" value="{{ start }}"></div>
+  <div class="field"><label>To</label><input type="date" name="end" value="{{ end }}"></div>
+  <button class="btn" type="submit">Apply</button>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Date</th><th>Journal</th><th>Narration</th><th>Party</th>
+        <th class="num">Money in</th><th class="num">Money out</th><th class="num">Balance</th><th>Cleared</th></tr></thead>
+      <tbody>
+        <tr><td colspan="6"><em>Opening balance</em></td><td class="num strong">{{ opening|money }}</td><td></td></tr>
+        {% for r in rows %}
+        <tr>
+          <td class="nowrap">{{ r.entry.date|dt }}</td>
+          <td><a href="/journals/{{ r.entry.id }}">{{ r.entry.number }}</a></td>
+          <td>{{ r.line.memo or r.entry.memo }}</td>
+          <td class="small">{{ r.line.contact.name if r.line.contact else '' }}</td>
+          <td class="num">{{ r.line.debit|money if r.line.debit else '' }}</td>
+          <td class="num">{{ r.line.credit|money if r.line.credit else '' }}</td>
+          <td class="num">{{ r.running|money }}</td>
+          <td>{{ '✓' if r.line.cleared else '' }}</td>
+        </tr>
+        {% else %}<tr><td colspan="8" class="empty">No movements in this period.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="6">Closing balance</td><td class="num">{{ closing|money }}</td><td></td></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}

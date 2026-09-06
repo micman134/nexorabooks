@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Who to chase{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Who to chase</h1>
+    <div class="muted small">{{ on|dt }} · ordered by what needs doing first, not by size</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/cash/timeline">What is coming</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Owed to you</div>
+    <div class="value">{{ owed|money }}</div></div>
+  <div class="stat {{ 'danger' if overdue }}"><div class="label">Past its due date</div>
+    <div class="value {{ 'neg' if overdue }}">{{ overdue|money }}</div></div>
+  <div class="stat"><div class="label">Customers owing</div>
+    <div class="value">{{ rows|length }}</div></div>
+  <div class="stat {{ 'danger' if urgent }}"><div class="label">Need a decision</div>
+    <div class="value">{{ urgent|length }}</div>
+    <div class="sub">a letter or an account on hold</div></div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>{{ rows|length }} customer{{ 's' if rows|length != 1 }}</h2>
+    <span class="muted small">Each suggestion is based on how that customer has
+      actually paid you.</span>
+  </div>
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Customer</th><th class="num">Owed</th><th class="num">Overdue</th>
+        <th>Oldest</th><th>How they pay</th><th>What to do</th><th class="no-print"></th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><a href="/cash/collections/{{ r.contact.id }}">{{ r.name }}</a>
+            {% if r.worth %}<div class="muted small">{{ r.worth|money }} of business this year</div>{% endif %}</td>
+          <td class="num">{{ r.total|money }}</td>
+          <td class="num {{ 'neg' if r.overdue }}">{{ r.overdue|money if r.overdue else '—' }}</td>
+          <td class="small">{{ (r.oldest_days ~ ' days') if r.oldest_days else 'not due yet' }}</td>
+          <td class="small muted">{{ r.history }}</td>
+          <td>
+            <span class="badge {{ 'badge-void' if r.urgent else ('badge-part' if r.is_late else 'badge-draft') }}">
+              {{ r.approach_label }}</span>
+            {% if r.reasons %}<div class="muted small">{{ r.reasons[0] }}</div>{% endif %}
+          </td>
+          <td class="right no-print">
+            <a class="btn btn-sm" href="/cash/collections/{{ r.contact.id }}">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <p><strong>Nobody owes you anything.</strong></p>
+    <p class="muted">Every invoice you have raised has been settled.</p>
+  </div>
+  {% endif %}
+</div>
+
+<p class="muted small">
+  The software drafts the messages and never sends one. A chasing letter to the
+  wrong customer costs more than the invoice.
+</p>
+{% endblock %}

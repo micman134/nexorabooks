@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Employees{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Employees</h1>
+  <div class="actions">
+    {% if can(user, 'entry') %}<a class="btn btn-primary" href="/payroll/employees/new">New employee</a>{% endif %}
+    <a class="btn" href="/payroll">Back to payroll</a>
+  </div>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">On payroll</div>
+    <div class="value">{{ people | selectattr('is_on_payroll') | list | length }}</div></div>
+  <div class="stat"><div class="label">Cost per pay period</div><div class="value">{{ monthly_cost|money }}</div>
+    <div class="sub">Gross plus employer contributions</div></div>
+</div>
+
+<form class="filters" method="get">
+  <div class="field" style="flex:1"><label>Search</label>
+    <input type="search" name="q" value="{{ q }}" placeholder="Name, staff number, job title or department"></div>
+  <div class="check"><input type="checkbox" id="left" name="left" value="1" {{ 'checked' if show_left }}>
+    <label for="left">Include people who have left</label></div>
+  <button class="btn" type="submit">Search</button>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Staff no.</th><th>Name</th><th>Job</th><th>Paid</th>
+        <th class="num">Gross per period</th><th>Pension</th><th>Tax ID</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for e in people %}
+        <tr>
+          <td class="mono">{{ e.staff_no }}</td>
+          <td><a href="/payroll/employees/{{ e.id }}">{{ e.full_name }}</a>
+            {% if e.is_director %}<span class="badge badge-open">director</span>{% endif %}</td>
+          <td>{{ e.job_title or '—' }}{% if e.department %}<div class="muted small">{{ e.department }}</div>{% endif %}</td>
+          <td class="small">{{ e.frequency|lower|title }}
+            {% if e.pay_basis != 'FIXED' %}<div class="muted small">{{ 'daily rate' if e.pay_basis == 'DAILY_RATE' else 'hourly rate' }}</div>{% endif %}</td>
+          <td class="num">{{ e.gross_per_period|money }}</td>
+          <td>{{ '✓' if e.pension_enrolled else '—' }}
+            {% if e.pfa_name %}<div class="muted small">{{ e.pfa_name }}</div>{% endif %}</td>
+          <td class="mono small">{{ e.tin or '—' }}</td>
+          <td><span class="badge {{ 'badge-paid' if e.status == 'ACTIVE' else ('badge-void' if e.status == 'LEFT' else 'badge-part') }}">
+            {{ e.status.replace('_',' ')|lower }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty">
+          Nobody on payroll yet.
+          {% if can(user, 'entry') %}<a href="/payroll/employees/new">Add the first employee</a>.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% set c = o.check if o is defined else None %}
+<div class="field-row">
+  <div class="field"><label>What this case is</label>
+    <input name="name" value="{{ c.name if c else '' }}"
+           placeholder="e.g. Adaeze's payslip for June, from our old system"></div>
+  <div class="field"><label>Paid</label>
+    <select name="frequency">
+      {% for key, label in P.FREQUENCY_LABELS.items() %}
+      <option value="{{ key }}" {{ 'selected' if c and c.frequency == key }}>{{ label }}</option>
+      {% endfor %}
+    </select></div>
+</div>
+
+<div class="field-row">
+  <div class="field"><label>Basic</label>
+    <input class="num" name="basic" value="{{ c.basic|amount if c and c.basic else '' }}"></div>
+  <div class="field"><label>Housing</label>
+    <input class="num" name="housing" value="{{ c.housing|amount if c and c.housing else '' }}"></div>
+  <div class="field"><label>Transport</label>
+    <input class="num" name="transport" value="{{ c.transport|amount if c and c.transport else '' }}"></div>
+  <div class="field"><label>Annual rent paid</label>
+    <input class="num" name="annual_rent_paid" value="{{ c.annual_rent_paid|amount if c and c.annual_rent_paid else '' }}"></div>
+</div>
+
+<div class="field-row">
+  <div class="check"><input type="checkbox" name="pension_enrolled" value="1" {{ 'checked' if not c or c.pension_enrolled }}>
+    <label>In the {{ s.pension_name }} scheme</label></div>
+  <div class="check"><input type="checkbox" name="nhf_enrolled" value="1" {{ 'checked' if not c or c.nhf_enrolled }}>
+    <label>In the {{ s.nhf_name }} scheme</label></div>
+  <div class="check"><input type="checkbox" name="nhis_enrolled" value="1" {{ 'checked' if c and c.nhis_enrolled }}>
+    <label>In the {{ s.nhis_name }} scheme</label></div>
+</div>
+
+<fieldset style="margin-top:.5rem">
+  <legend>What the answer should be</legend>
+  <div class="field-row">
+    <div class="field"><label>Gross pay</label>
+      <input class="num" name="expected_gross" value="{{ c.expected_gross|amount if c and c.expected_gross else '' }}" placeholder="leave empty to skip"></div>
+    <div class="field"><label>{{ s.tax_name }}</label>
+      <input class="num" name="expected_tax" value="{{ c.expected_tax|amount if c and c.expected_tax else '' }}" placeholder="leave empty to skip"></div>
+    <div class="field"><label>Net pay</label>
+      <input class="num" name="expected_net" value="{{ c.expected_net|amount if c and c.expected_net else '' }}" placeholder="leave empty to skip"></div>
+    <div class="field"><label>Allowed difference</label>
+      <input class="num" name="tolerance" value="{{ (c.tolerance if c else 100)|amount }}">
+      <div class="hint">Rounding differs between systems.</div></div>
+  </div>
+</fieldset>
+
+<div class="field"><label>Note</label>
+  <textarea name="note" rows="2" placeholder="Where this answer came from.">{{ c.note if c else '' }}</textarea></div>

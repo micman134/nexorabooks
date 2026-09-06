@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Asset categories{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Asset categories</h1>
+    <div class="muted small">Each category says which accounts an asset uses and how fast it wears out.</div>
+  </div>
+  <div class="actions"><a class="btn" href="/assets">Asset register</a></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Category</th><th>Depreciation</th><th>Asset account</th>
+        <th>Accumulated depreciation</th><th>Expense account</th>
+        <th class="num">Assets</th><th></th></tr></thead>
+      <tbody>
+        {% for c in categories %}
+        <tr>
+          <td><b>{{ c.name }}</b>{% if not c.is_active %} <span class="badge badge-void">archived</span>{% endif %}</td>
+          <td class="small">{{ c.life_label }}</td>
+          <td class="small">{{ c.asset_account.code ~ ' — ' ~ c.asset_account.name if c.asset_account else '—' }}</td>
+          <td class="small">{{ c.accum_dep_account.code ~ ' — ' ~ c.accum_dep_account.name if c.accum_dep_account else '—' }}</td>
+          <td class="small">{{ c.expense_account.code ~ ' — ' ~ c.expense_account.name if c.expense_account else '—' }}</td>
+          <td class="num">{{ counts.get(c.id, 0) }}</td>
+          <td class="right">
+            {% if can(user, 'journal') %}
+            <button class="btn btn-sm" type="button" onclick="editCategory({{ c.id }})">Edit</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if can(user, 'journal') %}
+<div class="card">
+  <div class="card-head"><h3 id="form-title">Add a category</h3></div>
+  <form class="card-body" method="post" action="/assets/categories/save">
+    <input type="hidden" name="id" id="cat-id" value="">
+    <div class="field-row">
+      <div class="field"><label for="nm">Name *</label>
+        <input id="nm" name="name" required placeholder="e.g. Forklifts"></div>
+      <div class="field"><label for="mt">Method</label>
+        <select id="mt" name="method">
+          {% for value, label in methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="ly">Useful life</label>
+        <div style="display:flex;gap:.4rem">
+          <input id="ly" class="num" name="useful_life_years" style="flex:1" placeholder="years">
+          <input id="lm" class="num" name="useful_life_months_extra" style="flex:1" placeholder="months">
+        </div></div>
+      <div class="field"><label for="rt">Rate a year (%)</label>
+        <input id="rt" class="num" name="rate_pct" value="0">
+        <div class="hint">Reducing balance only.</div></div>
+      <div class="field"><label for="rs">Residual (% of cost)</label>
+        <input id="rs" class="num" name="residual_pct" value="0">
+        <div class="hint">Suggested when adding an asset.</div></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="aa">Asset account</label>
+        <select id="aa" name="asset_account_id">
+          <option value="">—</option>
+          {% for a in accounts %}{% if a.subtype in ('FIXED_ASSET', 'OTHER_ASSET') %}
+          <option value="{{ a.id }}">{{ a.code }} — {{ a.name }}</option>{% endif %}{% endfor %}
+        </select></div>
+      <div class="field"><label for="da">Accumulated depreciation</label>
+        <select id="da" name="accum_dep_account_id">
+          <option value="">—</option>
+          {% for a in accounts %}{% if a.subtype == 'ACCUM_DEP' %}
+          <option value="{{ a.id }}">{{ a.code }} — {{ a.name }}</option>{% endif %}{% endfor %}
+        </select></div>
+      <div class="field"><label for="ea">Depreciation expense</label>
+        <select id="ea" name="expense_account_id">
+          <option value="">—</option>
+          {% for a in accounts %}{% if a.type == 'EXPENSE' %}
+          <option value="{{ a.id }}">{{ a.code }} — {{ a.name }}</option>{% endif %}{% endfor %}
+        </select></div>
+    </div>
+    <div class="check"><input type="checkbox" id="ia" name="is_active" value="1" checked>
+      <label for="ia">In use</label></div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save category</button>
+      <button class="btn" type="button" onclick="resetForm()">Clear</button>
+    </div>
+  </form>
+</div>
+
+<script>
+var CATEGORIES = {
+  {% for c in categories %}
+  {{ c.id }}: {name: {{ c.name|tojson }}, method: {{ c.method|tojson }},
+               months: {{ c.useful_life_months }}, rate: {{ c.rate_pct|tojson }},
+               residual: {{ c.residual_pct|tojson }},
+               asset: {{ c.asset_account_id or 0 }}, accum: {{ c.accum_dep_account_id or 0 }},
+               expense: {{ c.expense_account_id or 0 }}, active: {{ 'true' if c.is_active else 'false' }}}{{ ',' if not loop.last }}
+  {% endfor %}
+};
+function editCategory(id) {
+  var c = CATEGORIES[id];
+  document.getElementById('cat-id').value = id;
+  document.getElementById('form-title').textContent = 'Edit ' + c.name;
+  document.getElementById('nm').value = c.name;
+  document.getElementById('mt').value = c.method;
+  document.getElementById('ly').value = c.months ? Math.floor(c.months / 12) : '';
+  document.getElementById('lm').value = (c.months % 12) || '';
+  document.getElementById('rt').value = c.rate;
+  document.getElementById('rs').value = c.residual;
+  document.getElementById('aa').value = c.asset || '';
+  document.getElementById('da').value = c.accum || '';
+  document.getElementById('ea').value = c.expense || '';
+  document.getElementById('ia').checked = c.active;
+  document.getElementById('nm').scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+function resetForm() {
+  document.getElementById('cat-id').value = '';
+  document.getElementById('form-title').textContent = 'Add a category';
+  document.querySelector('form[action="/assets/categories/save"]').reset();
+}
+</script>
+{% endif %}
+{% endblock %}

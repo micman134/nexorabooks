@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter %}
+{% block title %}Journals{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Journal entries</h1>
+  <div class="actions">
+    {% if can(user, 'journal') %}
+      <a class="btn" href="/journals/opening-balances">Opening balances</a>
+      <a class="btn btn-primary" href="/journals/new">New journal entry</a>
+    {% endif %}
+  </div>
+</div>
+
+{{ period_filter(preset, start, end,
+   '<div class="field" style="flex:1"><label>Search</label><input type="search" name="q" value="' ~ q ~ '" placeholder="Number, narration or reference"></div>') }}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Number</th><th>Date</th><th>Narration</th><th>Source</th><th>Reference</th>
+        <th>Posted by</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td><a href="/journals/{{ e.id }}">{{ e.number }}</a>
+            {% if e.is_void %}<span class="badge badge-void">reversed</span>{% endif %}</td>
+          <td class="nowrap">{{ e.date|dt }}</td>
+          <td>{{ e.memo }}</td>
+          <td class="small">{{ e.source|title }}</td>
+          <td class="small">{{ e.reference }}</td>
+          <td class="small">{{ e.created_by.username if e.created_by else '—' }}</td>
+          <td class="num strong">{{ e.total_debit|money }}</td>
+        </tr>
+        {% else %}<tr><td colspan="7" class="empty">No journal entries in this period.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="6">Total posted (excluding reversals)</td><td class="num">{{ total|money }}</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}

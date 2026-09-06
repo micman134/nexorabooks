@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Open the till{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Open the till</h1>
+    <div class="muted small">Nothing can be sold over the counter until a drawer is open</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/pos/sessions">Past sessions</a>
+  </div>
+</div>
+
+{% if others %}
+<div class="alert alert-info">
+  <strong>Somebody else has a till open.</strong>
+  {% for s in others %}
+  {{ s.name }} — {{ s.number }}, opened {{ s.opened_at.strftime('%H:%M') }}
+  {% if s.opened_by %}by {{ s.opened_by.display_name }}{% endif %}.
+  {% endfor %}
+  You can open another under a different name.
+</div>
+{% endif %}
+
+<div class="card" style="max-width:640px">
+  <div class="card-head"><h2>Start a session</h2></div>
+  <form method="post" action="/pos/open">
+    <div class="card-body">
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="name">Which till</label>
+          <input id="name" name="name" value="Till 1" maxlength="60" required>
+        </div>
+        <div class="field">
+          <label for="opening_float">Opening float</label>
+          <input id="opening_float" name="opening_float" value="0" inputmode="decimal">
+        </div>
+      </div>
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="cash_account_id">The drawer is</label>
+          <select id="cash_account_id" name="cash_account_id" required>
+            {% for a in accounts %}
+            <option value="{{ a.id }}" {{ 'selected' if a.account_type == 'CASH' and loop.first }}>
+              {{ a.name }}{% if a.account_type == 'CASH' %} (cash){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if locations %}
+        <div class="field">
+          <label for="location_id">Shop or store</label>
+          <select id="location_id" name="location_id">
+            <option value="">Not recorded</option>
+            {% for l in locations %}
+            <option value="{{ l.id }}" {{ 'selected' if l.is_default }}>{{ l.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+      </div>
+      <p class="muted small">
+        The float is the money already in the drawer before trading starts —
+        the change you begin the day with. At the end of the day you will count
+        the drawer, and this is what the count is measured against.
+      </p>
+    </div>
+    <div class="card-body" style="border-top:1px solid var(--line)">
+      <button class="btn btn-primary" type="submit">Open the till</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

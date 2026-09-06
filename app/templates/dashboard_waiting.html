@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Almost ready{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Welcome, {{ user.display_name or user.username }}</h1>
+    <div class="muted small">Your account is set up and working</div>
+  </div>
+</div>
+
+<div class="card" style="max-width:640px">
+  <div class="card-body">
+    <p>You are signed in. The company's own details have not been filled in
+      yet, though, and until an administrator does that there is nothing for
+      the dashboard to show.</p>
+    <p class="muted">Nothing is wrong and nothing is missing on your side.
+      Whoever set up your account needs to finish Settings › Company — it takes
+      them a minute — and then everything here comes to life.</p>
+    <p><a class="btn" href="/account">My account</a></p>
+  </div>
+</div>
+{% endblock %}

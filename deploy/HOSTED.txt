@@ -1,0 +1,141 @@
+RUNNING NEXORA BOOKS FOR MORE THAN ONE BUSINESS
+===============================================
+
+This file is about the arrangement where you host the software and several
+unrelated businesses use it. It is NOT about somebody running their own copy on
+their own computer — that needs nothing here.
+
+Read the whole of this before you put a paying customer on a server. There is
+one decision in it you cannot take back quietly.
+
+
+-------------------------------------------------------------------------------
+1. THE BOUNDARY BETWEEN CUSTOMERS IS THE HOSTNAME
+-------------------------------------------------------------------------------
+
+Each business gets its own address:
+
+    acme.yourdomain.com     ->  the company whose folder is named "acme"
+    beta.yourdomain.com     ->  the company whose folder is named "beta"
+
+The software works out which books to open from that hostname and from nothing
+else. In particular it does NOT take it from the session cookie, because a
+cookie is something the visitor holds, and anything the visitor holds is
+something the visitor can change. A changed value that selects a database is not
+an inconvenience; it is a way into somebody else's payroll.
+
+Turn this on with two environment variables:
+
+    NEXORA_HOSTED=1
+    NEXORA_BASE_DOMAIN=yourdomain.com
+
+Both are needed. If you set the first and forget the second, the software serves
+nobody at all — which is the safe way to fail. It will not "match anything".
+
+While hosted mode is on:
+
+  * A hostname that names no company gets a 404 that says nothing about which
+    names do exist. Telling a stranger whether "acme" is a customer is telling
+    them your customer list one guess at a time.
+  * The company list, the company switcher, and creating, renaming or archiving
+    a company are all refused with a 404. Not hidden — refused. A screen that
+    lists companies leaks the customer list even when every link on it is dead.
+  * A session cookie that arrives naming a different company is thrown away
+    rather than honoured.
+
+Hosting mode is off unless you deliberately switch it on, so an installed copy
+on somebody's desk can never wake up behaving like a shared server.
+
+
+-------------------------------------------------------------------------------
+2. WHAT YOU HAVE TO SET UP OUTSIDE THE SOFTWARE
+-------------------------------------------------------------------------------
+
+DNS
+    A wildcard record pointing at the server:
+
+        *.yourdomain.com.   A   <your server's address>
+
+TLS
+    A WILDCARD certificate. This is the part people get wrong, because a
+    wildcard certificate cannot be issued by the ordinary HTTP challenge — it
+    needs a DNS challenge, which means your DNS provider must have an API and
+    certbot must have a plugin for it.
+
+        certbot certonly --dns-<your provider> \
+                -d yourdomain.com -d '*.yourdomain.com'
+
+    Without this every customer sees a certificate warning, and a certificate
+    warning on an accounting system is the end of the conversation.
+
+Nginx
+    server_name  *.yourdomain.com;
+
+    and it MUST pass the real host through, or every request will look like it
+    came from localhost and no customer will resolve:
+
+        proxy_set_header Host $host;
+
+    deploy/nginx-nexorabooks.conf has the rest of the proxy block. Change its
+    server_name to the wildcard.
+
+
+-------------------------------------------------------------------------------
+3. ADDING A CUSTOMER
+-------------------------------------------------------------------------------
+
+You cannot do it from inside the software any more — that is the point. Do it
+on the server, with the process stopped or from a separate shell:
+
+    NEXORA_DATA=/var/lib/nexorabooks python -c \
+      "from app import companies; print(companies.create('Acme Foods Ltd').slug)"
+
+Whatever slug that prints is the subdomain. If you want a specific one, name the
+company so that it slugifies to it, or rename the folder and the entry in
+companies.json together.
+
+Then tell the customer their address, and that the first sign-in is "admin" with
+the password "admin123", which they will be made to change.
+
+Reserved labels — www, app, api, admin, mail, billing, support, status and
+about forty others — can never be a customer. The full list is in
+app/tenancy.py. Keep it that way: a customer at admin.yourdomain.com is a
+phishing page you built yourself.
+
+
+-------------------------------------------------------------------------------
+4. WHAT THIS DOES *NOT* GIVE YOU
+-------------------------------------------------------------------------------
+
+Be honest with yourself about the gap between this and a product people sign up
+for on their own.
+
+  * There is no self-service signup. You create every customer by hand.
+  * There is no billing. Nothing charges anybody, and nothing stops working
+    when they do not pay.
+  * There is no account that spans companies. A person who works for two of
+    your customers has two separate sign-ins, because users live inside each
+    company's own database.
+  * The licence check is still the machine-locked one built for installed
+    copies. On a server it will behave oddly.
+  * One process serves everybody. A customer who uploads something enormous
+    slows down the others.
+
+Those are the pieces of a real hosted service, and they are separate work. What
+this file describes is the boundary — the part that had to be right before the
+first two customers shared a machine at all.
+
+
+-------------------------------------------------------------------------------
+5. BEFORE YOU CHARGE ANYBODY
+-------------------------------------------------------------------------------
+
+  [ ] Wildcard DNS resolves, and so does one real customer subdomain.
+  [ ] Wildcard certificate installed; http:// redirects to https://.
+  [ ] NEXORA_HOSTED=1 and NEXORA_BASE_DOMAIN are both set in the service file.
+  [ ] NEXORA_DATA points somewhere that is NOT under a web root. The software
+      refuses to start otherwise — do not work around it.
+  [ ] Visiting a made-up subdomain gives a 404 and names no customer.
+  [ ] Visiting /companies while signed in gives a 404.
+  [ ] Backups run, and a copy leaves the machine.
+  [ ] You have restored one from a backup, on purpose, and watched it work.

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}{{ budget.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ budget.name }}</h1>
+    <div class="muted small">{{ budget.start_date|dt }} — {{ budget.end_date|dt }} ·
+      figures are what you expect, in the account's normal direction (income positive, costs positive).</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/budgets/variance?budget={{ budget.id }}">Budget vs actual</a>
+    <a class="btn" href="/budgets">All budgets</a>
+  </div>
+</div>
+
+<div class="card no-print">
+  <div class="card-head"><h3>Shortcuts</h3></div>
+  <div class="card-body">
+    <div class="grid grid-2">
+      <form class="inline-form" method="post" action="/budgets/{{ budget.id }}/spread">
+        <div class="field" style="margin:0;min-width:220px"><label for="sa">Spread a year's figure evenly</label>
+          <select id="sa" name="account_id">
+            {% for a in all_accounts %}<option value="{{ a.id }}">{{ a.code }} — {{ a.name }}</option>{% endfor %}
+          </select></div>
+        <div class="field" style="margin:0"><label for="an">Amount for the year</label>
+          <input id="an" class="num" name="annual" placeholder="0.00"></div>
+        <button class="btn" type="submit">Spread it</button>
+      </form>
+
+      <form class="inline-form" method="post" action="/budgets/{{ budget.id }}/fill">
+        <div class="field" style="margin:0"><label for="up">Fill from last year, plus (%)</label>
+          <input id="up" class="num" name="uplift_pct" value="10"></div>
+        <div class="check" style="margin:0"><input type="checkbox" id="ow" name="overwrite" value="1">
+          <label for="ow">Replace figures already there</label></div>
+        <button class="btn" type="submit">Fill it in</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<form method="post" action="/budgets/{{ budget.id }}/save">
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field" style="flex:1.5"><label for="nm">Name</label>
+          <input id="nm" name="name" value="{{ budget.name }}"></div>
+        <div class="field" style="flex:2"><label for="nt">Notes</label>
+          <input id="nt" name="notes" value="{{ budget.notes }}"
+                 placeholder="What this budget assumes — e.g. two new trucks from June"></div>
+        <div class="field"><label>&nbsp;</label>
+          <div class="check"><input type="checkbox" id="ia" name="is_active" value="1"
+                                    {{ 'checked' if budget.is_active }}>
+            <label for="ia">In use</label></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Figures</h3>
+      <div class="actions">
+        <span class="muted small">Leave a cell empty for nothing planned.</span>
+        {% if show_all %}
+        <a class="btn btn-sm" href="/budgets/{{ budget.id }}/edit">Only accounts in use</a>
+        {% else %}
+        <a class="btn btn-sm" href="/budgets/{{ budget.id }}/edit?all=1">
+          Show all {{ all_accounts|length }} accounts{% if hidden %} ({{ hidden }} hidden){% endif %}</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="data budget-grid">
+        <thead>
+          <tr>
+            <th style="min-width:230px">Account</th>
+            {% for p in periods %}<th class="num">{{ month_label(p) }}</th>{% endfor %}
+            <th class="num">Year</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in accounts %}
+          <tr class="{{ 'section-income' if a.type == 'INCOME' }}">
+            <td class="nowrap"><span class="mono muted small">{{ a.code }}</span> {{ a.name }}</td>
+            {% for p in periods %}
+            <td><input class="num cell" name="cell_{{ a.id }}_{{ p }}"
+                       value="{{ cells.get((a.id, p))|amount if cells.get((a.id, p)) else '' }}"
+                       placeholder="—"></td>
+            {% endfor %}
+            <td class="num mono row-total">{{ row_totals[a.id]|money if row_totals[a.id] else '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>Total</th>
+            {% for p in periods %}<th class="num">{{ col_totals[p]|money if col_totals[p] else '' }}</th>{% endfor %}
+            <th class="num">{{ grand_total|money }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Save the budget</button>
+    <a class="btn" href="/budgets">Cancel</a>
+  </div>
+</form>
+
+<style>
+  table.budget-grid input.cell { width: 100%; min-width: 108px; padding: .25rem .4rem; font-size: 12.5px; }
+  table.budget-grid td, table.budget-grid th { padding: .25rem .35rem; }
+  table.budget-grid tr.section-income td:first-child { font-weight: 600; }
+</style>
+{% endblock %}

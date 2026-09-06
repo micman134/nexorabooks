@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}{{ 'New requisition' if is_new else req.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Raise a requisition' if is_new else 'Edit ' ~ req.number }}</h1>
+    <div class="muted small">
+      {% if manager %}It goes to {{ manager.display_name }} for approval
+        {%- if limit %}, and to a director if it is over {{ limit|money }}{% endif %}.
+      {% else %}
+        <span class="neg">You have no manager set, so there is nobody to approve this.
+        Ask an administrator to set one under Settings › Users.</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<form method="post" action="/requisitions/save" style="max-width:1000px">
+  {% if not is_new %}<input type="hidden" name="id" value="{{ req.id }}">{% endif %}
+
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field" style="flex:3"><label for="pp">What is it for *</label>
+          <input id="pp" name="purpose" value="{{ req.purpose }}" required autofocus
+                 placeholder="e.g. Diesel for the yard generator, week of 4 May"></div>
+        <div class="field"><label for="dt">Date</label>
+          <input id="dt" type="date" name="date" value="{{ (req.date or today()).isoformat() }}"></div>
+        <div class="field"><label for="nb">Needed by</label>
+          <input id="nb" type="date" name="needed_by"
+                 value="{{ req.needed_by.isoformat() if req.needed_by else '' }}"></div>
+        <div class="field"><label for="dp">Department</label>
+          <input id="dp" name="department" value="{{ req.department }}"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>What the money is for</h2>
+      <div class="actions"><button class="btn btn-sm" id="add-row" type="button">Add a line</button></div>
+    </div>
+    <div class="card-body">
+      <div class="table-wrap">
+        <table class="lines">
+          <thead>
+            <tr>
+              <th style="width:30%">Description</th>
+              <th style="width:22%">Charge it to *</th>
+              <th style="width:18%">Vendor</th>
+              <th style="width:8%" class="num">Qty</th>
+              <th style="width:13%" class="num">Amount each</th>
+              <th style="width:13%" class="num">Total</th>
+              <th style="width:34px"></th>
+            </tr>
+          </thead>
+          <tbody id="line-body">
+            {% for line in req.lines %}
+            <tr class="line-row">
+              <td><input class="l-desc" name="line_description" value="{{ line.description }}"
+                         placeholder="e.g. 2 drums of diesel"></td>
+              <td>
+                <select class="l-account" name="line_account">
+                  <option value="">— choose —</option>
+                  {% for a in accounts %}
+                  <option value="{{ a.id }}" {{ 'selected' if line.account_id == a.id }}>{{ a.code }} {{ a.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <select name="line_vendor">
+                  <option value="">—</option>
+                  {% for v in vendors %}
+                  <option value="{{ v.id }}" {{ 'selected' if line.vendor_id == v.id }}>{{ v.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input class="l-qty num" name="line_qty" value="{{ line.qty|qty if line.qty else '1' }}"></td>
+              <td><input class="l-price num" name="line_price"
+                         value="{{ line.unit_price|amount if line.unit_price else '' }}" placeholder="0.00"></td>
+              <td class="num l-total mono"></td>
+              <td class="rm"><button class="btn btn-sm rm-row" type="button" title="Remove this line">&times;</button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="totals" style="margin-top:1rem">
+        <table>
+          <tr class="grand"><td>Total requested</td><td id="t-subtotal">—</td></tr>
+        </table>
+      </div>
+      <div class="hint">
+        Choose the account each line should be charged to — diesel to the fuel account,
+        a repair to repairs. Finance charges it there when the money goes out.
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" type="submit" name="action" value="save">Save as a draft</button>
+    <button class="btn btn-primary" type="submit" name="action" value="submit"
+            {{ 'disabled' if not manager }}>
+      Save and send for approval</button>
+    <a class="btn" href="{{ '/requisitions' if is_new else '/requisitions/' ~ req.id }}">Cancel</a>
+  </div>
+  {% if not is_new %}
+  <p class="muted small">You can attach the vendor's invoice on the requisition itself,
+    after saving.</p>
+  {% else %}
+  <p class="muted small">Save it first, then attach the vendor's invoice or quote to it.</p>
+  {% endif %}
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/lines.js"></script>
+{% endblock %}

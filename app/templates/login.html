@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" data-theme="{{ theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · {{ APP_NAME }}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/themes.css">
+</head>
+<body>
+<div class="login-wrap">
+  <form class="login-card" method="post" action="/login">
+    <h1>{{ company.name if company and company.setup_complete else APP_NAME }}</h1>
+    <p class="sub">Accounting that adds up</p>
+
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+    {% for f in flashes %}<div class="alert alert-{{ f.level }}">{{ f.message }}</div>{% endfor %}
+
+    <div class="field">
+      <label for="username">Username</label>
+      <input id="username" name="username" value="{{ username or '' }}" autofocus autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <input type="hidden" name="next" value="{{ next or '/' }}">
+    <button class="btn btn-primary" style="width:100%; justify-content:center" type="submit">Sign in</button>
+    <p class="hint" style="text-align:center; margin-top:1rem">
+      First time here? Sign in as <strong>admin</strong> with the password <strong>admin123</strong>,
+      then change it when prompted.
+    </p>
+  </form>
+</div>
+</body>
+</html>

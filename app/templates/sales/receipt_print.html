@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "_macros.html" import letterhead %}
+{% block title %}Receipt {{ pay.number }}{% endblock %}
+{% block content %}
+<div class="page-head no-print">
+  <h1>Receipt {{ pay.number }}</h1>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+    <a class="btn" href="/receipts/{{ pay.id }}/pdf">Download PDF</a>
+    <a class="btn" href="/receipts/{{ pay.id }}">Back</a>
+  </div>
+</div>
+
+<div class="doc">
+  <div class="doc-head">
+    {{ letterhead(company) }}
+    <div class="doc-title">
+      <h1>Receipt</h1>
+      <table style="margin-left:auto; font-size:13px">
+        <tr><td class="muted right" style="padding-right:.5rem">Number</td><td class="strong">{{ pay.number }}</td></tr>
+        <tr><td class="muted right" style="padding-right:.5rem">Date</td><td>{{ pay.date|dt }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="doc-parties">
+    <div>
+      <div class="lbl">Received from</div>
+      <strong>{{ pay.contact.name }}</strong><br>
+      <span class="muted small">{{ pay.contact.address }}</span>
+    </div>
+    <div class="right">
+      <div class="lbl">Amount received</div>
+      <div style="font-size:1.7rem; font-weight:700; color:var(--green-dark)">{{ pay.amount|money }}</div>
+      <div class="muted small">{{ pay.method }}{{ ' · ' ~ pay.reference if pay.reference }}</div>
+    </div>
+  </div>
+
+  {% if pay.allocations %}
+  <table class="data">
+    <thead><tr><th>Applied to invoice</th><th>Invoice date</th><th class="num">Amount applied</th></tr></thead>
+    <tbody>
+      {% for a in pay.allocations %}
+      <tr><td>{{ a.invoice.number }}</td><td>{{ a.invoice.date|dt }}</td>
+        <td class="num">{{ (a.amount + a.wht_amount + a.discount)|money }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if pay.wht_amount %}
+  <p class="hint" style="margin-top:1rem">
+    Includes a withholding tax credit of {{ pay.wht_amount|money }} deducted at source.
+  </p>
+  {% endif %}
+
+  <div class="doc-foot">
+    <p>{{ company.invoice_footer }}</p>
+    <p style="margin-top:2rem">_______________________________<br>Authorised signature</p>
+  </div>
+</div>
+{% endblock %}

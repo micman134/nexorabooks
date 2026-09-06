@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter %}
+{% block title %}Withholding tax{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Withholding tax {{ 'deducted from suppliers' if payable else 'suffered on your sales' }}</h1>
+    <div class="muted small">{{ company.name }} · {{ start|dt }} to {{ end|dt }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="?kind={{ 'payable' if payable else 'credit' }}&start={{ start }}&end={{ end }}&format=csv">Export CSV</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<div class="tabs no-print">
+  <a href="/reports/wht?kind=payable&start={{ start }}&end={{ end }}" class="{{ 'active' if payable }}">Tax you withheld</a>
+  <a href="/reports/wht?kind=credit&start={{ start }}&end={{ end }}" class="{{ 'active' if not payable }}">Tax withheld from you</a>
+</div>
+
+{{ period_filter(preset, start, end,
+   '<input type="hidden" name="kind" value="' ~ ('payable' if payable else 'credit') ~ '">') }}
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat accent">
+    <div class="label">{{ 'Total withheld and due to the NRS' if payable else 'Total tax credit available' }}</div>
+    <div class="value">{{ total|money }}</div></div>
+  <div class="stat"><div class="label">Transactions</div><div class="value">{{ rows|length }}</div></div>
+</div>
+
+{% if payable %}
+<div class="alert alert-info">
+  Withholding tax deducted must reach the National Revenue Service by the 21st day of the following month.
+  Record the remittance as a payment from the bank to <strong>2210 Withholding Tax Payable</strong>.
+</div>
+{% else %}
+<div class="alert alert-info">
+  These are amounts your customers deducted at source. Keep the WHT credit notes — they offset your
+  company income tax. The balance sits in <strong>1410 WHT Credit Receivable</strong>.
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Date</th><th>Journal</th><th>{{ 'Supplier' if payable else 'Customer' }}</th>
+        <th>Tax ID</th><th>Narration</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        {% for entry, line, contact, amount in rows %}
+        <tr>
+          <td class="nowrap">{{ entry.date|dt }}</td>
+          <td><a href="/journals/{{ entry.id }}">{{ entry.number }}</a></td>
+          <td>{% if contact %}<a href="/contacts/{{ contact.id }}">{{ contact.name }}</a>{% else %}—{% endif %}</td>
+          <td class="mono small">{{ contact.tin if contact and contact.tin else '—' }}</td>
+          <td class="small">{{ line.memo }}</td>
+          <td class="num strong">{{ amount|money }}</td>
+        </tr>
+        {% else %}<tr><td colspan="6" class="empty">No withholding tax in this period.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr class="grand"><td colspan="5">Total</td><td class="num">{{ total|money }}</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}

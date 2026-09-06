@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Your recovery codes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Your recovery codes</h1>
+    <div class="muted small">The way back in if you lose your phone.</div>
+  </div>
+  <div class="actions no-print">
+    <button class="btn btn-primary" onclick="window.print()">Print them</button>
+  </div>
+</div>
+
+{% if clock_note %}
+<div class="alert alert-warning">{{ clock_note }}</div>
+{% endif %}
+
+<div class="alert alert-warning no-print">
+  <strong>This is the only time these are shown.</strong>
+  They are stored scrambled, so nobody — not an administrator, not us — can read
+  them back to you later. Print this page or write them down now.
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>{{ codes|length }} codes, each usable once</h2>
+  </div>
+  <div class="card-body">
+    <div class="recovery-grid">
+      {% for c in codes %}<code class="recovery-code">{{ c }}</code>{% endfor %}
+    </div>
+    <p class="muted small" style="margin-top:1rem">
+      Keep them somewhere a thief would not look and a fire would not reach — not in
+      the same wallet as the phone. When they run low you can make a new set from your
+      account page, which cancels these.
+    </p>
+  </div>
+</div>
+
+<p class="no-print"><a class="btn" href="/account">Done</a></p>
+{% endblock %}

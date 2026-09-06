@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Bring in your data{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Bring in your data</h1>
+  <div class="actions"><a class="btn" href="/settings">Back to settings</a></div>
+</div>
+
+<div class="alert alert-info">
+  Export from whatever you use now — a spreadsheet, QuickBooks, Sage, Wave, Zoho,
+  a hand-kept book — save it as CSV, and upload it here. Nothing is written until
+  you have seen exactly what will happen, row by row, and clicked again.
+  <br><br>
+  <strong>Do them in the order below.</strong> Customers have to exist before their
+  unpaid invoices can be brought in, and accounts before opening balances.
+</div>
+
+<div class="grid grid-2">
+  {% for s in sheets %}
+  <div class="card">
+    <div class="card-head">
+      <h2><span class="muted">{{ loop.index }}.</span> {{ s.title }}</h2>
+    </div>
+    <div class="card-body">
+      <p class="small">{{ s.what }}</p>
+      {% if s.warning %}<p class="muted small">{{ s.warning }}</p>{% endif %}
+      <div class="btn-row">
+        <a class="btn btn-primary btn-sm" href="/import/{{ s.key }}">Upload a file</a>
+        <a class="btn btn-sm" href="/import/{{ s.key }}/template">Download a blank template</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head"><h2>If it goes wrong</h2></div>
+  <div class="card-body">
+    <p class="small">
+      Take a backup under <a href="/settings/backup">Settings &rsaquo; Backup</a> before
+      you start. If an import brings in something you did not want, restoring that
+      backup puts everything back exactly as it was — which is a great deal calmer
+      than undoing four hundred rows by hand.
+    </p>
+    <p class="small">
+      Opening balances are the exception: uploading a corrected trial balance simply
+      replaces the previous one, so that file can be fixed and re-uploaded as often
+      as you like.
+    </p>
+  </div>
+</div>
+{% endblock %}

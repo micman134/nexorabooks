@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Search results for “{{ q }}”</h1></div>
+
+{% if q|length < 2 %}
+<div class="card"><div class="empty">Type at least two characters to search.</div></div>
+{% else %}
+
+{% set total = results.contacts|length + results.invoices|length + results.bills|length + results.products|length + results.journals|length %}
+{% if total == 0 %}
+<div class="card"><div class="empty">Nothing matched “{{ q }}”.</div></div>
+{% endif %}
+
+{% if results.contacts %}
+<div class="card">
+  <div class="card-head"><h2>Contacts</h2></div>
+  <div class="table-wrap"><table class="data">
+    <tbody>{% for c in results.contacts %}
+      <tr><td><a href="/contacts/{{ c.id }}">{{ c.name }}</a></td>
+        <td class="small muted">{{ c.code }} · {{ c.phone }} {{ c.email }}</td></tr>
+    {% endfor %}</tbody></table></div>
+</div>
+{% endif %}
+
+{% if results.invoices %}
+<div class="card">
+  <div class="card-head"><h2>Sales documents</h2></div>
+  <div class="table-wrap"><table class="data">
+    <tbody>{% for i in results.invoices %}
+      <tr>
+        <td><a href="/sales/{{ 'invoices' if i.doc_type == 'INVOICE' else ('quotes' if i.doc_type == 'QUOTE' else 'credit-notes') }}/{{ i.id }}">{{ i.number }}</a></td>
+        <td>{{ i.contact.name if i.contact }}</td>
+        <td class="small muted">{{ i.date|dt }}</td>
+        <td class="num">{{ i.total|money }}</td>
+      </tr>
+    {% endfor %}</tbody></table></div>
+</div>
+{% endif %}
+
+{% if results.bills %}
+<div class="card">
+  <div class="card-head"><h2>Purchase documents</h2></div>
+  <div class="table-wrap"><table class="data">
+    <tbody>{% for b in results.bills %}
+      <tr>
+        <td><a href="/purchases/{{ 'bills' if b.doc_type == 'BILL' else ('orders' if b.doc_type == 'PO' else 'debit-notes') }}/{{ b.id }}">{{ b.number }}</a></td>
+        <td>{{ b.contact.name if b.contact }}</td>
+        <td class="small muted">{{ b.date|dt }}</td>
+        <td class="num">{{ b.total|money }}</td>
+      </tr>
+    {% endfor %}</tbody></table></div>
+</div>
+{% endif %}
+
+{% if results.products %}
+<div class="card">
+  <div class="card-head"><h2>Items</h2></div>
+  <div class="table-wrap"><table class="data">
+    <tbody>{% for i in results.products %}
+      <tr><td><a href="/inventory/{{ i.id }}">{{ i.name }}</a></td>
+        <td class="small muted">{{ i.code }}</td>
+        <td class="num">{{ i.sale_price|money }}</td></tr>
+    {% endfor %}</tbody></table></div>
+</div>
+{% endif %}
+
+{% if results.journals %}
+<div class="card">
+  <div class="card-head"><h2>Journal entries</h2></div>
+  <div class="table-wrap"><table class="data">
+    <tbody>{% for e in results.journals %}
+      <tr><td><a href="/journals/{{ e.id }}">{{ e.number }}</a></td>
+        <td>{{ e.memo }}</td>
+        <td class="small muted">{{ e.date|dt }}</td>
+        <td class="num">{{ e.total_debit|money }}</td></tr>
+    {% endfor %}</tbody></table></div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

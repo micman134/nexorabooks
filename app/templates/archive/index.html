@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Filed paperwork{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Filed paperwork</h1>
+    <div class="muted small">Invoices, receipts and anything else worth keeping — including
+      what came before these books.</div>
+  </div>
+  <div class="actions">
+    {% if can(user, 'entry') %}<a class="btn btn-primary" href="/archive/new">File a document</a>{% endif %}
+  </div>
+</div>
+
+<form method="get" action="/archive" class="inline-form">
+  <input name="q" value="{{ q }}" placeholder="Customer, supplier, reference or note"
+         style="max-width:22rem" aria-label="Search filed paperwork">
+  <select name="kind" aria-label="Kind">
+    <option value="">Every kind</option>
+    {% for code, label in kinds %}
+    <option value="{{ code }}" {{ 'selected' if kind == code }}>{{ label.split('—')[0].strip() }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-sm" type="submit">Search</button>
+  {% if q or kind %}<a class="btn btn-sm" href="/archive">Clear</a>{% endif %}
+</form>
+
+{% if not rows %}
+<div class="card" style="margin-top:1.25rem"><div class="card-body">
+  <p><strong>Nothing filed yet.</strong></p>
+  <p class="muted small">
+    This is where paperwork lives that is not itself a transaction in these books —
+    the invoices and receipts you had before you started, a supplier's statement, a
+    letter about a payment. Upload the scan, say who it was with and what it was for,
+    and it becomes searchable.
+  </p>
+  <p class="muted small">
+    An old invoice that is <em>still unpaid</em> can also be entered into your books
+    at the same time, so it shows as money owed to you. One tick box when you file it.
+  </p>
+</div></div>
+{% else %}
+<div class="card" style="margin-top:1.25rem">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr>
+        <th>Date</th><th>Kind</th><th>With</th><th>Reference</th>
+        <th class="num">Amount</th><th>File</th><th>In the books</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.doc_date|dt if row.doc_date else '—' }}</td>
+          <td>{{ row.kind_label }}</td>
+          <td>{{ row.party }}
+            {% if row.note %}<div class="muted small">{{ row.note|truncate(70) }}</div>{% endif %}</td>
+          <td class="small mono">{{ row.reference or '—' }}</td>
+          <td class="num">{{ row.amount|money if row.amount else '—' }}</td>
+          <td class="small">
+            {% for f in files.get(row.id, []) %}
+            <a href="/attachments/{{ f.id }}">{{ f.filename|truncate(28) }}</a>
+            <span class="muted">{{ f.size_label }}</span>
+            {% else %}<span class="muted">none</span>{% endfor %}
+          </td>
+          <td class="small">
+            {% if row.in_the_books and row.invoice %}
+            <a href="/sales/invoices/{{ row.invoice_id }}">{{ row.invoice.number }}</a>
+            {% else %}<span class="muted">record only</span>{% endif %}
+          </td>
+          <td class="num">
+            {% if can(user, 'delete') and not row.invoice_id %}
+            <form method="post" action="/archive/{{ row.id }}/delete" style="display:inline"
+                  onsubmit="return confirm('Take this out of the archive? The file goes with it.')">
+              <button class="btn btn-sm btn-danger" type="submit">Delete</button></form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

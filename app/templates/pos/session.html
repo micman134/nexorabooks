@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ session.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ session.name }} — {{ session.number }}</h1>
+    <div class="muted small">
+      {{ session.opened_at.strftime('%d %b %Y, %H:%M') }}
+      {% if session.closed_at %}to {{ session.closed_at.strftime('%H:%M') }}{% else %}
+      — still open{% endif %}
+      {% if session.opened_by %}· opened by {{ session.opened_by.display_name }}{% endif %}
+      {% if session.closed_by %}· closed by {{ session.closed_by.display_name }}{% endif %}
+    </div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/pos/sessions">All sessions</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+{% if not session.is_open and session.difference %}
+<div class="alert {{ 'alert-danger' if session.is_short else 'alert-warning' }}">
+  <strong>The drawer was {{ session.difference|abs|money }}
+    {{ 'short' if session.is_short else 'over' }}.</strong>
+  It has been written to Till Differences (Over and Short), so it shows on the
+  profit and loss rather than disappearing.
+  {% if session.notes %}<br><em>{{ session.notes }}</em>{% endif %}
+</div>
+{% elif not session.is_open %}
+<div class="alert alert-success">The drawer balanced exactly.</div>
+{% endif %}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Sold</div>
+    <div class="value">{{ figures.sales|money }}</div>
+    <div class="sub">{{ figures.count }} sale{{ '' if figures.count == 1 else 's' }}</div></div>
+  <div class="stat"><div class="label">Average sale</div>
+    <div class="value">{{ figures.average_sale|money }}</div></div>
+  <div class="stat"><div class="label">Cash expected</div>
+    <div class="value">{{ (session.expected_cash if not session.is_open else figures.expected_cash)|money }}</div>
+    <div class="sub">float {{ session.opening_float|money }}</div></div>
+  <div class="stat {{ 'danger' if session.is_short and not session.is_open }}">
+    <div class="label">Counted</div>
+    <div class="value">{{ session.counted_cash|money if not session.is_open else '—' }}</div>
+    {% if not session.is_open %}
+    <div class="sub">{{ 'balanced' if not session.difference else (session.difference|money) }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>How people paid</h2></div>
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          {% for value, label in tender_kinds %}
+          <tr><td>{{ label }}</td>
+            <td class="num">{{ figures.by_kind.get(value, 0)|money }}</td></tr>
+          {% endfor %}
+          <tr class="total"><td>Taken</td><td class="num">{{ figures.sales|money }}</td></tr>
+          {% if session.banked %}
+          <tr><td>Sent to {{ session.bank_account.name if session.bank_account }}</td>
+            <td class="num">{{ session.banked|money }}</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>The drawer</h2></div>
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          <tr><td>Opening float</td><td class="num">{{ session.opening_float|money }}</td></tr>
+          <tr><td>Cash taken</td><td class="num">{{ figures.cash|money }}</td></tr>
+          <tr class="total"><td>Should have held</td>
+            <td class="num">{{ (session.expected_cash if not session.is_open else figures.expected_cash)|money }}</td></tr>
+          <tr><td>Counted</td>
+            <td class="num">{{ session.counted_cash|money if not session.is_open else '—' }}</td></tr>
+          <tr class="grand {{ 'neg' if session.is_short }}"><td>Difference</td>
+            <td class="num">{{ session.difference|money if not session.is_open else '—' }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head"><h2>Every sale on this session</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Number</th><th>Customer</th><th>Kind</th><th class="num">Amount</th><th></th></tr></thead>
+      <tbody>
+        {% for inv in sales %}
+        <tr>
+          <td>{{ inv.number }}</td>
+          <td class="muted">{{ inv.contact.name if inv.contact }}</td>
+          <td class="small">{{ 'Refund' if inv.doc_type == 'CREDIT_NOTE' else 'Sale' }}</td>
+          <td class="num {{ 'neg' if inv.doc_type == 'CREDIT_NOTE' }}">{{ inv.total|money }}</td>
+          <td class="num no-print">
+            <a class="btn btn-sm" href="/pos/sale/{{ inv.id }}/receipt" target="_blank">Receipt</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="muted">Nothing was sold on this session.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

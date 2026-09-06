@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Landed costs{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Landed costs</h1>
+    <div class="muted small">Freight, duty and clearing spread into the value of the goods
+      they were paid to bring in.</div>
+  </div>
+  <div class="actions"><a class="btn" href="/inventory">Items &amp; stock</a></div>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Moved into stock</div>
+    <div class="value">{{ posted_total|money }}</div>
+    <div class="sub">All time</div></div>
+  <div class="stat"><div class="label">Consignments</div><div class="value">{{ rows|length }}</div></div>
+  <div class="stat"><div class="label">Waiting</div>
+    <div class="value">{{ rows | selectattr('status', 'equalto', 'DRAFT') | list | length }}</div>
+    <div class="sub">Drafts not yet posted</div></div>
+</div>
+
+{% if can(user, 'journal') %}
+<div class="card">
+  <div class="card-head"><h3>Start a consignment</h3></div>
+  <form class="card-body" method="post" action="/landed-costs/create">
+    <div class="field-row">
+      <div class="field"><label for="dt">Date</label>
+        <input id="dt" type="date" name="date" value="{{ today.isoformat() }}"></div>
+      <div class="field" style="flex:1.5"><label for="bs">Spread the charges</label>
+        <select id="bs" name="basis">
+          {% for value, label in bases %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="rf">Reference</label>
+        <input id="rf" name="reference" placeholder="Container or waybill number"></div>
+    </div>
+    <div class="field"><label for="nt">Note</label>
+      <input id="nt" name="note" placeholder="e.g. 40ft container from Guangzhou, cleared at Apapa"></div>
+    <button class="btn btn-primary" type="submit">Start it</button>
+    <span class="muted small">You choose the purchase and the charges on the next screen.</span>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Number</th><th>Date</th><th>Reference</th><th>Basis</th>
+        <th class="num">Goods</th><th class="num">Charges</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="mono"><a href="/landed-costs/{{ r.id }}">{{ r.number }}</a></td>
+          <td>{{ r.date|dt }}</td>
+          <td class="small">{{ r.reference or '—' }}
+            {% if r.note %}<div class="muted small">{{ r.note|truncate(60) }}</div>{% endif %}</td>
+          <td class="small">{{ r.basis_label }}</td>
+          <td class="num muted">{{ r.goods_value|money }}</td>
+          <td class="num">{{ r.total_charges|money }}</td>
+          <td><span class="badge {{ r.status|status_class }}">{{ r.status|lower }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">
+          Nothing yet. When a container arrives and the clearing agent bills you,
+          start one here so the freight ends up in the cost of the goods.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="muted small">
+  A landed cost creates no new expense. It moves cost sideways — out of the freight and duty
+  accounts, into the value of the stock — so the profit on each sale is the real one.
+</p>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Receipts{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Customer receipts</h1>
+  <div class="actions">{% if can(user, 'entry') %}<a class="btn btn-primary" href="/receipts/new">Record a receipt</a>{% endif %}</div>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Total received (shown)</div><div class="value">{{ total|money }}</div></div>
+</div>
+
+<form class="filters" method="get">
+  <div class="field" style="flex:1"><label>Search</label>
+    <input type="search" name="q" value="{{ q }}" placeholder="Receipt number, customer or reference"></div>
+  <button class="btn" type="submit">Search</button>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Number</th><th>Date</th><th>Customer</th><th>Paid into</th><th>Method</th>
+        <th class="num">Cash</th><th class="num">WHT credit</th><th class="num">Unapplied</th></tr></thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td><a href="/receipts/{{ p.id }}">{{ p.number }}</a>
+            {% if p.status == 'VOID' %}<span class="badge badge-void">void</span>{% endif %}</td>
+          <td class="nowrap">{{ p.date|dt }}</td>
+          <td>{{ p.contact.name if p.contact }}</td>
+          <td>{{ p.bank_account.name if p.bank_account }}</td>
+          <td>{{ p.method }}</td>
+          <td class="num strong">{{ p.amount|money }}</td>
+          <td class="num">{{ p.wht_amount|money if p.wht_amount else '—' }}</td>
+          <td class="num">{{ p.unallocated|money if p.unallocated else '—' }}</td>
+        </tr>
+        {% else %}<tr><td colspan="8" class="empty">No receipts recorded yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

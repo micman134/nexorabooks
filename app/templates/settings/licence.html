@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block title %}Licence{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Licence</h1>
+  <div class="actions"><a class="btn" href="/settings">Back to settings</a></div>
+</div>
+
+<div class="alert {{ 'alert-success' if state.is_licensed
+                     else ('alert-warning' if state.can_post else 'alert-danger') }}">
+  <strong>{{ state.headline }}</strong>
+  {% if state.kind == 'TRIAL' %}
+  — everything works until {{ trial_ends|dt }}. Your books stay yours whatever happens
+  after that.
+  {% elif state.explanation %}
+  <br><br>{{ state.explanation }}
+  {% endif %}
+</div>
+
+{% if seats.over %}
+<div class="alert alert-warning">
+  <strong>You have {{ seats.used }} people who can sign in and {{ seats.allowed }}
+  {{ 'user' if seats.allowed == 1 else 'users' }} on your licence.</strong>
+  Nobody has been signed out and nobody will be. Either add
+  {{ seats.over }} more {{ 'user' if seats.over == 1 else 'users' }} below, or switch
+  off {{ seats.over }} {{ 'account' if seats.over == 1 else 'accounts' }} under
+  <a href="/settings/users">Settings › Users</a> — a switched-off account keeps its
+  name on the audit trail.
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- Buying or renewing                                                  -->
+  <!-- ------------------------------------------------------------------ -->
+  <div class="card">
+    <div class="card-head">
+      <h2>{{ 'Renew your licence' if renewing else 'Buy a licence' }}</h2>
+      {% if store.PRICES_ARE_EXAMPLES %}<span class="badge badge-draft">example prices</span>{% endif %}
+    </div>
+    <div class="card-body">
+
+      {% if store.PRICES_ARE_EXAMPLES %}
+      <div class="alert alert-warning small">
+        <strong>Seller: these are not your prices yet.</strong>
+        Set them in <span class="mono">app/store.py</span> and switch
+        <span class="mono">PRICES_ARE_EXAMPLES</span> to False before you build a copy
+        for anybody else. Nobody but you should ever see this box.
+      </div>
+      {% endif %}
+
+      <p class="muted small">
+        A licence covers this computer for {{ store.LICENCE_MONTHS }} months and a
+        chosen number of people who can sign in. Staff on other computers reach the
+        same books through this one, so you buy users — not machines.
+      </p>
+
+      {% if store.can_quote() %}
+      <form method="get" action="/settings/licence" class="inline-form" id="quote-form">
+        <label for="users">How many people will sign in?</label>
+        <input id="users" name="users" type="number" min="{{ store.MINIMUM_USERS }}"
+               max="999" step="1" value="{{ wanted_users }}" style="max-width:6.5rem">
+        <button class="btn btn-sm" type="submit">Work out the price</button>
+      </form>
+
+      <div id="quote-box" style="margin-top:1rem">
+        {% if quote.too_big %}
+        <p><strong>More than {{ store.TALK_TO_US_ABOVE }} users is worth a
+          conversation.</strong> Get in touch and we will quote properly.</p>
+        {% else %}
+        <table class="data">
+          <tbody>
+            <tr><td>{{ quote.users }} {{ 'user' if quote.users == 1 else 'users' }}
+                    at {{ store.money(quote.per_user) }} each, for
+                    {{ store.LICENCE_MONTHS }} months</td>
+                <td class="num"><strong style="font-size:1.25rem">{{ store.money(quote.total) }}</strong></td></tr>
+          </tbody>
+        </table>
+        {% if quote.bumped %}
+        <p class="muted small" style="margin-top:.5rem">
+          You asked for {{ quote.asked_for }} and we have quoted {{ quote.users }},
+          because at this size {{ quote.users }} users cost less than
+          {{ quote.asked_for }} do. You get the extra
+          {{ quote.users - quote.asked_for }} either way, so you may as well have them.
+        </p>
+        {% endif %}
+        {% endif %}
+      </div>
+
+      <details style="margin-top:1rem">
+        <summary>The price per user</summary>
+        <table class="data" style="margin-top:.5rem">
+          <tbody>
+            {% for row in prices %}
+            <tr>
+              <td>{{ row.label }}</td>
+              <td class="num">{{ row.per_month_text }} a month</td>
+              <td class="num muted">{{ row.per_user_text }} a year</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="muted small" style="margin-top:.5rem">
+          Per user. The rate for your size applies to everybody, not just the ones
+          above the line. Licences are bought a year at a time, so the yearly figure
+          is what you pay. Prices are in {{ store.CURRENCY }}.
+        </p>
+      </details>
+      {% else %}
+      <p>Get in touch for a price for the number of people you need.</p>
+      {% endif %}
+
+      <h3 style="margin-top:1.5rem">How to pay</h3>
+      {% if ways and quote.is_quotable %}
+      <p class="muted small">
+        Each one opens a secure checkout page with {{ store.money(quote.total) }}
+        already filled in.
+      </p>
+      <p class="small" style="margin:.6rem 0">
+        <strong>Copy this first.</strong> The checkout page asks for a reference —
+        paste this in, because it is how your payment is matched to this computer
+        and it is what your licence will be issued against.
+      </p>
+      <p><code class="secret-key">{{ machine_code }}</code></p>
+      <div class="pay-choices">
+        {% for way in ways %}
+        <a class="pay-choice" href="{{ way.url }}" target="_blank" rel="noopener">
+          <span class="pay-choice-name">Pay with {{ way.name }}</span>
+          <span class="pay-choice-sum">{{ store.money(quote.total) }}</span>
+          {% if way.note %}<span class="pay-choice-note">{{ way.note }}</span>{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      <p class="muted small" style="margin-top:.75rem">
+        Payment is taken by the provider you choose, on their own page.
+        {{ APP_NAME }} never sees or stores a card number — it has no internet
+        connection at all.
+      </p>
+      {% elif ways %}
+      <p class="muted small">Choose a number of users above and the payment options
+        will appear with the right amount on them.</p>
+      {% endif %}
+
+      {% if store.bank_shown() %}
+      <details style="margin-top:1rem">
+        <summary>Or pay by bank transfer</summary>
+        <table class="data" style="margin-top:.5rem">
+          <tbody>
+            <tr><th style="width:9rem">Bank</th><td>{{ store.BANK.bank }}</td></tr>
+            <tr><th>Account name</th><td>{{ store.BANK.account_name }}</td></tr>
+            <tr><th>Account number</th><td class="mono">{{ store.BANK.account_number }}</td></tr>
+            <tr><th>Reference</th><td class="mono">{{ machine_code }}</td></tr>
+          </tbody>
+        </table>
+        <p class="muted small" style="margin-top:.6rem">
+          <strong>Quote the reference.</strong> It is how your payment is matched to
+          this computer. A transfer is checked by hand, so it takes longer than a
+          card.{% if store.BANK.note %}<br>{{ store.BANK.note }}{% endif %}
+        </p>
+      </details>
+      {% endif %}
+
+      {% if not store.payment_ready() %}
+      <p class="muted small">No way to pay has been set up in this copy. Get in touch
+        and we will sort it out.</p>
+      {% endif %}
+
+      <h3 style="margin-top:1.5rem">After you pay</h3>
+      <p class="small">
+        Your licence is sent back to you as a text file, usually the same working day.
+        Paste it into the box further down and you are done. If you have not heard
+        within a day, get in touch and quote your machine code.
+      </p>
+      <table class="data">
+        <tbody>
+          {% for how, detail in store.how_to_reach_us() %}
+          <tr><th style="width:9rem">{{ how }}</th><td>{{ detail }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- This computer, and what is on it                                    -->
+  <!-- ------------------------------------------------------------------ -->
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>This computer</h2></div>
+      <div class="card-body">
+        <p class="muted small">
+          Send this code when you buy or renew. It identifies this installation and
+          nothing else — no name, no serial number, nothing about you in it.
+        </p>
+        <p><code class="secret-key">{{ machine_code }}</code></p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:1.25rem">
+      <div class="card-head">
+        <h2>People who can sign in</h2>
+        <span class="badge {{ 'badge-void' if seats.over else 'badge-paid' }}">{{ seats.summary }}</span>
+      </div>
+      <div class="card-body">
+        {% if seats.unlimited %}
+        <p class="small">No limit on this licence. Add as many people as you need under
+          <a href="/settings/users">Settings › Users</a>.</p>
+        {% elif seats.left %}
+        <p class="small">Room for {{ seats.left }} more
+          {{ 'person' if seats.left == 1 else 'people' }}.</p>
+        {% else %}
+        <p class="small">Every user on your licence is in use. Add more above, or switch
+          off an account that has left.</p>
+        {% endif %}
+        <p class="muted small">
+          Counted once per person across every company on this computer, and only for
+          accounts that are switched on. Somebody who has left and been switched off
+          keeps their name on the audit trail and does not use a place.
+        </p>
+      </div>
+    </div>
+
+    {% if state.licence %}
+    <div class="card" style="margin-top:1.25rem">
+      <div class="card-head"><h2>Your licence</h2></div>
+      <div class="card-body">
+        <div class="table-wrap">
+          <table class="data">
+            <tbody>
+              <tr><td>Licensed to</td><td>{{ state.licence.name }}</td></tr>
+              <tr><td>Edition</td><td>{{ state.licence.edition }}</td></tr>
+              <tr><td>Users</td>
+                  <td>{% if state.licence.unlimited_users %}no limit
+                      {% else %}{{ state.licence.users }}{% endif %}</td></tr>
+              <tr><td>Computer</td><td>{{ state.licence.machine }}</td></tr>
+              <tr><td>Issued</td><td>{{ state.licence.issued|dt }}</td></tr>
+              <tr><td>Expires</td>
+                <td>{% if state.licence.perpetual %}Never{% else %}{{ state.licence.expires|dt }}
+                    {% if state.kind == 'LICENSED' %}
+                    — {{ state.days_left }} {{ 'day' if state.days_left == 1 else 'days' }} left
+                    {% endif %}{% endif %}</td></tr>
+              {% if state.licence.companies %}
+              <tr><td>Companies</td><td>up to {{ state.licence.companies }}</td></tr>
+              {% endif %}
+              {% if state.licence.note %}
+              <tr><td>Note</td><td>{{ state.licence.note }}</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        <form method="post" action="/settings/licence/remove" style="margin-top:1rem"
+              onsubmit="return confirm('Remove the licence from this computer? Your books are not affected.')">
+          <button class="btn btn-danger btn-sm" type="submit">Remove this licence</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="max-width:820px; margin-top:1.25rem">
+  <div class="card-head">
+    <h2>{{ 'Enter your new licence' if state.licence else 'Enter a licence' }}</h2>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/settings/licence">
+      <div class="field">
+        <label for="lic">Paste the whole licence, including the last line</label>
+        <textarea id="lic" name="licence" rows="7" required
+                  style="font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.85rem"
+                  placeholder="eyJlZGl0aW9uIjoiU3RhbmRhcmQi...&#10;...&#10;..."></textarea>
+        <div class="hint">
+          It arrives as a text file. Open it, copy everything below the dashed line,
+          and paste it here. Nothing is sent anywhere — the check happens on this
+          computer.
+        </div>
+      </div>
+      <button class="btn btn-primary" type="submit">Activate</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="max-width:820px; margin-top:1.25rem">
+  <div class="card-head"><h2>What a lapsed licence does and does not do</h2></div>
+  <div class="card-body">
+    <p class="small">
+      <strong>Your books are always yours.</strong> With no licence you can still open
+      every screen, print and export every report, look at every past transaction, and
+      take a full backup you can restore anywhere. Nothing is deleted, hidden or held
+      back.
+    </p>
+    <p class="small">
+      What stops is writing <em>new</em> entries — invoices, bills, payments, payroll
+      and journals — until a licence is entered. Nobody is ever signed out over a
+      licence, and no account is ever switched off for you.
+    </p>
+  </div>
+</div>
+{% endblock %}

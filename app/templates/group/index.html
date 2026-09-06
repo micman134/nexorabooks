@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter %}
+{% block title %}Group accounts{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ group.name or 'Group accounts' }}</h1>
+    <div class="muted small">
+      {{ g.members|length }} companies · {{ g.start|dt }} to {{ g.end|dt }} ·
+      figures in {{ g.currency.code }}
+    </div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/group/csv?start={{ g.start }}&end={{ g.end }}">Export CSV</a>
+    {% if can(user, 'admin') %}<a class="btn" href="/group/settings">Group settings</a>{% endif %}
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+{{ period_filter(preset, g.start, g.end) }}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent">
+    <div class="label">Group revenue</div>
+    <div class="value">{{ g.revenue.total|money }}</div>
+    {% if g.revenue.eliminated %}
+    <div class="sub">{{ g.revenue.eliminated|money }} of it was sold inside the group and taken out</div>
+    {% endif %}
+  </div>
+  <div class="stat {{ 'danger' if g.net_profit < 0 }}">
+    <div class="label">Group profit</div>
+    <div class="value {{ 'neg' if g.net_profit < 0 }}">{{ g.net_profit|money }}</div>
+    <div class="sub">{{ (g.net_profit * 100 // g.revenue.total) if g.revenue.total else 0 }}% of revenue</div>
+  </div>
+  <div class="stat">
+    <div class="label">What the group owns</div>
+    <div class="value">{{ g.total_assets|money }}</div>
+    <div class="sub">less {{ g.total_liabilities|money }} owed</div>
+  </div>
+  <div class="stat">
+    <div class="label">Cash across the group</div>
+    <div class="value">{{ g.total_cash|money }}</div>
+    <div class="sub">at {{ g.end|dt }}</div>
+  </div>
+</div>
+
+{% if g.mismatches %}
+<div class="alert alert-warning">
+  <strong>Two companies do not agree about what passed between them.</strong>
+  Only the part they agree on has been taken out; the difference is left in, so
+  that a missing invoice cannot hide inside the group's figures.
+  <table class="data" style="margin-top:.75rem; background:transparent">
+    <thead><tr><th>Between</th><th></th><th class="num">One says</th><th class="num">The other says</th><th class="num">Difference</th><th></th></tr></thead>
+    <tbody>
+      {% for m in g.mismatches %}
+      <tr>
+        <td>{{ names[m.left] }} and {{ names[m.right] }}</td>
+        <td class="muted small">{{ m.what }}</td>
+        <td class="num">{{ m.left_says|money }}</td>
+        <td class="num">{{ m.right_says|money }}</td>
+        <td class="num neg">{{ m.difference|money }}</td>
+        <td class="small muted">
+          {% if m.across_currencies %}these two keep different currencies, so this
+          may be the rate rather than a missing document{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if not g.balances_ok %}
+<div class="alert alert-danger">
+  <strong>The group balance sheet is out by {{ g.difference|money }}.</strong>
+  That should not happen when every member balances. Check the exchange rates
+  on the settings page, and whether one company's books are themselves out.
+</div>
+{% endif %}
+
+{% macro columns(section, sign=1) %}
+  <tr class="section"><td colspan="{{ g.members|length + 4 }}">{{ section.title }}</td></tr>
+  {% for row in section.rows %}
+  <tr>
+    <td class="indent">{{ row.code }} — {{ row.name }}</td>
+    {% for reading in g.members %}
+    <td class="num muted">{{ row.parts.get(reading.slug, 0)|money }}</td>
+    {% endfor %}
+    <td class="num">{{ row.combined|money }}</td>
+    <td class="num {{ 'neg' if row.eliminated }}">{{ row.eliminated|money if row.eliminated else '—' }}</td>
+    <td class="num"><strong>{{ row.total|money }}</strong></td>
+  </tr>
+  {% else %}
+  <tr><td class="indent muted">Nothing recorded</td>
+    <td class="num muted" colspan="{{ g.members|length + 3 }}">—</td></tr>
+  {% endfor %}
+  <tr class="total">
+    <td>Total {{ section.title|lower }}</td>
+    {% for reading in g.members %}
+    <td class="num">{{ section.of(reading.slug)|money }}</td>
+    {% endfor %}
+    <td class="num">{{ section.combined|money }}</td>
+    <td class="num">{{ section.eliminated|money if section.eliminated else '—' }}</td>
+    <td class="num">{{ section.total|money }}</td>
+  </tr>
+{% endmacro %}
+
+{% macro head() %}
+  <thead>
+    <tr>
+      <th>Account</th>
+      {% for reading in g.members %}
+      <th class="num">{{ reading.name }}{% if reading.currency.code != g.currency.code %}
+        <span class="muted small">({{ reading.currency.code }})</span>{% endif %}</th>
+      {% endfor %}
+      <th class="num">Added up</th>
+      <th class="num">Taken out</th>
+      <th class="num">Group</th>
+    </tr>
+  </thead>
+{% endmacro %}
+
+{# ---- profit and loss --------------------------------------------------- #}
+<div class="card">
+  <div class="card-head"><h2>Profit &amp; loss for the group</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      {{ head() }}
+      <tbody>
+        {{ columns(g.revenue) }}
+        {{ columns(g.cogs, -1) }}
+        <tr class="grand"><td>Gross profit</td>
+          <td class="num" colspan="{{ g.members|length + 2 }}"></td>
+          <td class="num">{{ g.gross_profit|money }}</td></tr>
+        {{ columns(g.expenses, -1) }}
+        <tr class="total"><td>Operating profit</td>
+          <td class="num" colspan="{{ g.members|length + 2 }}"></td>
+          <td class="num">{{ g.operating_profit|money }}</td></tr>
+        {{ columns(g.other_income) }}
+        {{ columns(g.tax, -1) }}
+        <tr class="grand"><td>Group profit for the period</td>
+          <td class="num" colspan="{{ g.members|length + 2 }}"></td>
+          <td class="num">{{ g.net_profit|money }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ---- balance sheet ----------------------------------------------------- #}
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head"><h2>Balance sheet at {{ g.end|dt }}</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      {{ head() }}
+      <tbody>
+        {{ columns(g.current_assets) }}
+        {{ columns(g.fixed_assets) }}
+        <tr class="grand"><td>What the group owns</td>
+          <td class="num" colspan="{{ g.members|length + 2 }}"></td>
+          <td class="num">{{ g.total_assets|money }}</td></tr>
+
+        {{ columns(g.current_liabilities) }}
+        {{ columns(g.long_liabilities) }}
+        <tr class="grand"><td>What the group owes</td>
+          <td class="num" colspan="{{ g.members|length + 2 }}"></td>
+          <td class="num">{{ g.total_liabilities|money }}</td></tr>
+
+        {{ columns(g.equity) }}
+        <tr>
+          <td class="indent">Profit brought forward</td>
+          {% for reading in g.members %}
+          <td class="num muted">{{ g.brought_forward.get(reading.slug, 0)|money }}</td>
+          {% endfor %}
+          <td class="num">{{ g.total_brought_forward|money }}</td>
+          <td class="num">—</td>
+          <td class="num"><strong>{{ g.total_brought_forward|money }}</strong></td>
+        </tr>
+        <tr>
+          <td class="indent">Profit this year</td>
+          {% for reading in g.members %}
+          <td class="num muted">{{ g.earnings.get(reading.slug, 0)|money }}</td>
+          {% endfor %}
+          <td class="num">{{ g.total_earnings|money }}</td>
+          <td class="num">—</td>
+          <td class="num"><strong>{{ g.total_earnings|money }}</strong></td>
+        </tr>
+        {% if g.total_translation %}
+        <tr>
+          <td class="indent">Translation difference
+            <span class="muted small">— from bringing another currency across at two rates</span></td>
+          {% for reading in g.members %}
+          <td class="num muted">{{ g.translation.get(reading.slug, 0)|money }}</td>
+          {% endfor %}
+          <td class="num">{{ g.total_translation|money }}</td>
+          <td class="num">—</td>
+          <td class="num"><strong>{{ g.total_translation|money }}</strong></td>
+        </tr>
+        {% endif %}
+        <tr class="grand"><td>What the group is worth</td>
+          <td class="num" colspan="{{ g.members|length + 2 }}"></td>
+          <td class="num">{{ g.total_equity|money }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ---- cash -------------------------------------------------------------- #}
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head"><h2>Cash at {{ g.end|dt }}</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Company</th><th>Keeps its books in</th><th class="num">Cash</th></tr></thead>
+      <tbody>
+        {% for reading in g.members %}
+        <tr>
+          <td>{{ reading.name }}</td>
+          <td class="muted small">{{ reading.currency.code }}</td>
+          <td class="num">{{ g.cash.get(reading.slug, 0)|money }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="grand"><td colspan="2">Across the group</td>
+          <td class="num">{{ g.total_cash|money }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ---- notes ------------------------------------------------------------- #}
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head"><h2>How these figures were put together</h2></div>
+  <div class="card-body">
+    <ul class="points">
+      {% for note in g.notes %}<li>{{ note }}</li>{% endfor %}
+    </ul>
+    {% if g.problems %}
+    <div class="alert alert-warning" style="margin-top:1rem">
+      <ul class="points">
+        {% for problem in g.problems %}<li>{{ problem }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    <p class="muted small" style="margin-top:1rem">
+      These are management figures. They are not a statutory consolidation:
+      there is no minority interest, no goodwill and no adjustment for profit
+      still sitting in stock bought from another member. Give them to your
+      accountant as a starting point, not as a filing.
+    </p>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
+{% block title %}{{ label }}s{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ label }}s</h1>
+  <div class="actions">
+    {% if can(user, 'entry') %}<a class="btn btn-primary" href="/purchases/{{ slug }}/new">New {{ label|lower }}</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Documents shown</div><div class="value">{{ totals.count }}</div></div>
+  <div class="stat"><div class="label">Total value</div><div class="value">{{ totals.value|money }}</div></div>
+  <div class="stat accent"><div class="label">Still to pay</div><div class="value">{{ totals.outstanding|money }}</div></div>
+  <div class="stat"><div class="label">WHT to withhold</div><div class="value">{{ totals.wht|money }}</div>
+    <div class="sub">Deducted when you pay</div></div>
+</div>
+
+<form class="filters" method="get">
+  <div class="field" style="flex:1"><label>Search</label>
+    <input type="search" name="q" value="{{ q }}" placeholder="Number, supplier or their invoice number"></div>
+  <div class="field"><label>Status</label>
+    <select name="status" onchange="this.form.submit()">
+      <option value="">All</option>
+      {% for s in ['DRAFT','POSTED','PART_PAID','PAID','VOID'] %}
+      <option value="{{ s }}" {{ 'selected' if status == s }}>{{ s.replace('_',' ')|title }}</option>
+      {% endfor %}
+    </select></div>
+  <button class="btn" type="submit">Search</button>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Number</th><th>Date</th><th>Supplier</th><th>Their invoice</th><th>Due</th>
+        <th>Status</th><th class="num">Total</th><th class="num">WHT</th><th class="num">Outstanding</th></tr></thead>
+      <tbody>
+        {% for d in docs %}
+        <tr>
+          <td><a href="/purchases/{{ slug }}/{{ d.id }}">{{ d.number }}</a></td>
+          <td class="nowrap">{{ d.date|dt }}</td>
+          <td>{{ d.contact.name if d.contact else '—' }}</td>
+          <td>{{ d.vendor_invoice_no or '—' }}</td>
+          <td class="nowrap {{ 'neg' if d.due_date and d.due_date < today() and d.status in ('POSTED','PART_PAID') }}">
+            {{ d.due_date|dt if d.due_date else '—' }}</td>
+          <td>{{ status_badge(d.status) }}</td>
+          <td class="num">{{ d.total|money }}</td>
+          <td class="num">{{ d.wht_total|money if d.wht_total else '—' }}</td>
+          <td class="num strong">{{ d.balance_due|money if d.status in ('POSTED','PART_PAID') else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="empty">Nothing here yet.
+          {% if can(user, 'entry') %}<a href="/purchases/{{ slug }}/new">Create the first {{ label|lower }}</a>.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

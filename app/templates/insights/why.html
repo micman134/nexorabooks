@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Why did that change?{% endblock %}
+
+{% macro qs(compare, keys) -%}
+?compare={{ compare }}{% for k in keys %}&p={{ k|urlencode }}{% endfor %}
+{%- endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Why did that change?</h1>
+    <div class="muted small">
+      {{ cur.start|dt }} – {{ cur.end|dt }}, against {{ prior.start|dt }} – {{ prior.end|dt }}
+    </div>
+  </div>
+  <div class="actions no-print">
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<form class="filters no-print" method="get">
+  <div class="field">
+    <label for="compare">Compare</label>
+    <select name="compare" id="compare" onchange="this.form.submit()">
+      {% for key, c, p in choices %}
+      <option value="{{ key }}" {{ 'selected' if key == compare }}>{{ c.label }} against {{ p.label|lower }}</option>
+      {% endfor %}
+      <option value="custom" {{ 'selected' if compare == 'custom' }}>Dates I choose</option>
+    </select>
+  </div>
+  {% if compare == 'custom' %}
+  <div class="field"><label>Period from</label><input type="date" name="cs" value="{{ cur.start }}"></div>
+  <div class="field"><label>to</label><input type="date" name="ce" value="{{ cur.end }}"></div>
+  <div class="field"><label>Against from</label><input type="date" name="ps" value="{{ prior.start }}"></div>
+  <div class="field"><label>to</label><input type="date" name="pe" value="{{ prior.end }}"></div>
+  <button class="btn btn-primary" type="submit">Apply</button>
+  {% endif %}
+</form>
+
+{# ---- where we are ------------------------------------------------------ #}
+{% if trail %}
+<nav class="crumbs no-print" aria-label="Breadcrumb">
+  {% for node, keys in trail %}
+    <a href="{{ qs(compare, keys) }}">{{ node.label }}</a>
+    <span aria-hidden="true">›</span>
+  {% endfor %}
+  <strong>{{ level.node.label }}</strong>
+</nav>
+{% endif %}
+
+{# ---- the headline ------------------------------------------------------ #}
+<div class="card">
+  <div class="card-body">
+    <div class="movement {{ 'up' if level.node.profit_effect > 0 else ('down' if level.node.profit_effect < 0 else '') }}">
+      <div class="movement-figure">
+        <div class="label">{{ level.node.label }}{{ '' if level.node.dim == 'root' else ' — effect on profit' }}</div>
+        <div class="value">{{ level.node.profit_effect|money }}</div>
+        <div class="sub">
+          {{ level.node.current|money }} this period · {{ level.node.prior|money }} before
+          {% if level.node.pct_change is not none %}
+            · {{ '%+.1f'|format(level.node.pct_change) }}%
+          {% endif %}
+        </div>
+      </div>
+      <div class="movement-words">
+        {% for line in story %}<p>{{ line }}</p>{% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if level.unexplained %}
+<div class="alert alert-warning">
+  The breakdown below is out by {{ level.unexplained|money }} against the figure above.
+  That should never happen — please send a diagnostic report from Settings.
+</div>
+{% endif %}
+
+{# ---- the breakdown ----------------------------------------------------- #}
+<div class="card">
+  <div class="card-head">
+    <h2>{{ dim_label or 'Breakdown' }}</h2>
+    <span class="muted small">
+      {% if level.child_dim == 'entry' %}
+        Every transaction behind this figure, largest first.
+      {% else %}
+        Click any row to open it further.
+      {% endif %}
+    </span>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>{{ col_label or 'Item' }}</th>
+          <th class="num">This period</th>
+          {% if level.child_dim != 'entry' %}
+          <th class="num">Before</th>
+          <th class="num">Change</th>
+          <th class="num">Effect on profit</th>
+          <th class="share-col">Relative size</th>
+          {% endif %}
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in level.children %}
+        {% set keys = path + [c.key] %}
+        <tr>
+          <td>
+            {% if c.can_open %}
+              <a href="{{ qs(compare, keys) }}">{{ c.label }}</a>
+            {% else %}
+              {{ c.label }}
+            {% endif %}
+            {% if c.subtitle %}<div class="muted small">{{ c.subtitle }}</div>{% endif %}
+            {# At transaction level every row is "new" by construction — the prior
+               period holds different documents, not earlier versions of these —
+               so the badges would be noise rather than information. #}
+            {% if level.child_dim != 'entry' %}
+              {% if c.is_new %}<span class="badge badge-open">new</span>{% endif %}
+              {% if c.is_gone %}<span class="badge badge-void">stopped</span>{% endif %}
+            {% endif %}
+          </td>
+          <td class="num">{{ c.current|money }}</td>
+          {% if level.child_dim != 'entry' %}
+          <td class="num muted">{{ c.prior|money }}</td>
+          <td class="num">{{ c.delta|money }}</td>
+          <td class="num {{ 'pos' if c.profit_effect > 0 else 'neg' }}">{{ c.profit_effect|money }}</td>
+          {# Bars are scaled to the biggest row here, not to the parent's net
+             movement, so that offsetting rows stay readable. #}
+          <td class="share-col">
+            {% set share = c.share_of(level.node.profit_effect) %}
+            <div class="bar {{ 'bar-up' if c.profit_effect > 0 else 'bar-down' }}"
+                 title="{{ '%.0f'|format(share|abs) }}% the size of the overall movement">
+              <span style="width: {{ (c.profit_effect|abs * 100 // level.largest) if level.largest else 0 }}%"></span>
+            </div>
+          </td>
+          {% endif %}
+          <td class="num">
+            {% if c.ref %}<a class="btn btn-sm" href="{{ c.ref }}">Open</a>
+            {% elif c.can_open %}<a class="btn btn-sm" href="{{ qs(compare, keys) }}">Why?</a>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="muted">Nothing was posted here in either period.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="muted small">
+  Every figure on this page is the sum of posted journal lines for the two periods.
+  Nothing here is estimated or predicted — keep clicking and you will end up at the
+  transactions themselves.
+</p>
+{% endblock %}

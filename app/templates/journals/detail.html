@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_macros.html" import attachments_panel %}
+{% block title %}{{ entry.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Journal {{ entry.number }}
+      {% if entry.is_void %}<span class="badge badge-void">reversed</span>{% endif %}</h1>
+    <div class="muted small">{{ entry.date|dt }} · {{ entry.source|title }}
+      {% if entry.reference %} · ref {{ entry.reference }}{% endif %}
+      · posted by {{ entry.created_by.username if entry.created_by else 'system' }}
+      on {{ entry.created_at|dt('%d %b %Y, %H:%M') }}</div>
+  </div>
+  <div class="actions">
+    <button class="btn" onclick="window.print()">Print</button>
+    {% if not entry.is_void and can(user, 'journal') %}
+    <form method="post" action="/journals/{{ entry.id }}/reverse" style="display:inline"
+          onsubmit="return confirm('Post a reversing entry? The original stays on record.')">
+      <input type="hidden" name="date" value="{{ today.isoformat() }}">
+      <button class="btn btn-danger" type="submit">Reverse this entry</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if entry.is_void %}
+<div class="alert alert-warning">
+  This entry has been reversed{% if reversal %} by <a href="/journals/{{ reversal.id }}">{{ reversal.number }}</a>{% endif %}.
+  It no longer affects any report, but it stays here as part of the audit trail.
+</div>
+{% endif %}
+{% if entry.reverses_id %}
+<div class="alert alert-info">This is a reversing entry for
+  <a href="/journals/{{ entry.reverses_id }}">journal #{{ entry.reverses_id }}</a>.</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><h2>{{ entry.memo }}</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>#</th><th>Account</th><th>Narration</th><th>Party</th><th>Tax</th>
+        <th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+      <tbody>
+        {% for l in entry.lines %}
+        <tr>
+          <td>{{ l.line_no }}</td>
+          <td><a href="/reports/general-ledger?account={{ l.account_id }}">{{ l.account.code }} — {{ l.account.name }}</a></td>
+          <td>{{ l.memo }}</td>
+          <td class="small">{{ l.contact.name if l.contact else '' }}</td>
+          <td class="small">{{ l.tax_code_id and '✓' or '' }}</td>
+          <td class="num">{{ l.debit|money if l.debit else '' }}</td>
+          <td class="num">{{ l.credit|money if l.credit else '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="5">Totals</td><td class="num">{{ entry.total_debit|money }}</td>
+        <td class="num">{{ entry.total_credit|money }}</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+
+{% if entry.source_id and entry.source in ('INVOICE','BILL','RECEIPT','PAYMENT') %}
+<p><a class="btn" href="{% if entry.source == 'INVOICE' %}/sales/invoices/{{ entry.source_id }}{% elif entry.source == 'BILL' %}/purchases/bills/{{ entry.source_id }}{% elif entry.source == 'RECEIPT' %}/receipts/{{ entry.source_id }}{% else %}/payments/{{ entry.source_id }}{% endif %}">
+  Open the source document</a></p>
+{% endif %}
+{{ attachments_panel(user, 'JOURNAL', entry.id, files) }}
+
+{% endblock %}

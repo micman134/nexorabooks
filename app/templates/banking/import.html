@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Import a statement{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Import a bank statement</h1>
+    <div class="muted small">{{ bank.name }}{% if bank.account_number %} · {{ bank.account_number }}{% endif %}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/banking/{{ bank.id }}">Back to the account</a>
+  </div>
+</div>
+
+{% if error %}
+{# The refusals here run to a short paragraph and a what-to-do-instead, so the
+   blank line between them has to survive into the page. #}
+<div class="alert alert-danger" style="white-space:pre-line">{{ error }}</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Choose the file</h2></div>
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data" action="/banking/{{ bank.id }}/import">
+        <div class="field">
+          <label for="file">The statement your bank gave you</label>
+          <input id="file" type="file" name="file" required
+                 accept=".csv,.txt,.xlsx,.pdf,.ofx,.qfx,.qbo,text/csv,text/plain,
+                         application/pdf,
+                         application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          <div class="hint">CSV, Excel (.xlsx), PDF, or the OFX/QFX file your
+            bank offers as “Quicken” or “Microsoft Money” format. Nothing is
+            saved until you have seen what was read.
+            <br><strong>Where your bank offers CSV or Excel, use it.</strong>
+            A PDF holds no columns — only text at positions on a page — so
+            reading one means working the table out from where things sit.
+            It works, and it is the one you should check line by line. A
+            scanned or photographed statement cannot be read at all.</div>
+        </div>
+        <button class="btn btn-primary" type="submit">Read it</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>What to expect</h2></div>
+    <div class="card-body">
+      <p>You do not have to tidy the file up or tell it which column is which.
+        It finds the heading row wherever the bank put it, works out the columns
+        from their names, and checks its reading against the running balance.</p>
+      <p class="muted small">
+        Then it goes through your books looking for what each line already is —
+        an invoice waiting to be paid, a bill you have entered, a payment
+        somebody recorded on the day. It <strong>suggests</strong>; you confirm.
+        Nothing is posted until you say so, line by line.
+      </p>
+      <p class="muted small">
+        The same file can safely be imported twice. Lines that came in before
+        are recognised and left alone.
+      </p>
+    </div>
+  </div>
+</div>
+
+{% if recent %}
+<div class="card">
+  <div class="card-head">
+    <h2>Statements already brought in</h2>
+    <div class="actions"><a class="btn btn-sm" href="/banking/imports">All accounts</a></div>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>File</th><th>Period</th><th class="num">In</th><th class="num">Out</th>
+        <th class="num">Lines</th><th>Still to do</th><th></th></tr></thead>
+      <tbody>
+        {% for b in recent %}
+        <tr>
+          <td>{{ b.filename or 'statement' }}
+            <div class="muted small">{{ b.imported_at|dt('%d %b %Y, %H:%M') }}{% if b.imported_by %} · {{ b.imported_by.display_name }}{% endif %}</div></td>
+          <td class="small">{{ b.first_date|dt }} – {{ b.last_date|dt }}</td>
+          <td class="num pos">{{ b.total_in|money }}</td>
+          <td class="num neg">{{ b.total_out|money }}</td>
+          <td class="num">{{ b.line_count }}</td>
+          <td>{% if b.is_done %}<span class="badge badge-paid">all done</span>
+              {% else %}<span class="badge badge-part">{{ b.outstanding }} left</span>{% endif %}</td>
+          <td class="right"><a class="btn btn-sm" href="/banking/import/{{ b.id }}">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter %}
+{% block title %}VAT return{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>VAT return</h1>
+    <div class="muted small">{{ company.name }}{% if company.vat_reg_no %} · VAT {{ company.vat_reg_no }}{% endif %}
+      · {{ r.start|dt }} to {{ r.end|dt }}</div>
+  </div>
+  <div class="actions no-print"><button class="btn btn-primary" onclick="window.print()">Print</button></div>
+</div>
+
+{{ period_filter(preset, r.start, r.end) }}
+
+{% if not company.is_vat_registered %}
+<div class="alert alert-warning">
+  This company is marked as not VAT registered in Settings, so input VAT is expensed rather than reclaimed.
+</div>
+{% endif %}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Output VAT</div><div class="value">{{ r.output_vat|money }}</div>
+    <div class="sub">On sales</div></div>
+  <div class="stat"><div class="label">Input VAT</div><div class="value">{{ r.input_vat|money }}</div>
+    <div class="sub">On purchases</div></div>
+  {% if r.vat_withheld %}
+  <div class="stat"><div class="label">Withheld at source</div>
+    <div class="value">{{ r.vat_withheld|money }}</div>
+    <div class="sub">Already with the NRS</div></div>
+  {% endif %}
+  <div class="stat {{ 'accent' if r.net_payable >= 0 else 'warn' }}">
+    <div class="label">{{ 'Payable' if r.net_payable >= 0 else 'Reclaimable' }}</div>
+    <div class="value">{{ r.net_payable|abs|money }}</div></div>
+  <div class="stat warn"><div class="label">Return due by</div>
+    <div class="value" style="font-size:1.1rem">{{ r.due_date|dt }}</div>
+    <div class="sub">21st of the following month</div></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Return summary</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <tbody>
+        <tr class="section"><td colspan="2">Supplies made (sales)</td></tr>
+        <tr><td class="indent">Standard-rated supplies (net)</td><td class="num">{{ r.standard_sales|money }}</td></tr>
+        <tr><td class="indent">Zero-rated supplies</td><td class="num">{{ r.zero_rated_sales|money }}</td></tr>
+        <tr><td class="indent">Exempt supplies</td><td class="num">{{ r.exempt_sales|money }}</td></tr>
+        <tr class="total"><td>Total supplies</td>
+          <td class="num">{{ (r.standard_sales + r.zero_rated_sales + r.exempt_sales)|money }}</td></tr>
+        <tr class="total"><td>Output VAT charged</td><td class="num">{{ r.output_vat|money }}</td></tr>
+
+        <tr class="section"><td colspan="2">Supplies received (purchases)</td></tr>
+        <tr><td class="indent">Taxable purchases (net)</td><td class="num">{{ r.standard_purchases|money }}</td></tr>
+        <tr class="total"><td>Input VAT claimable</td><td class="num">{{ r.input_vat|money }}</td></tr>
+
+        {% if r.vat_withheld %}
+        <tr class="section"><td colspan="2">VAT withheld at source</td></tr>
+        <tr><td class="indent">Kept back by government and oil-and-gas customers
+          and remitted by them</td><td class="num">{{ r.vat_withheld|money }}</td></tr>
+        {% endif %}
+
+        <tr class="grand"><td>Net VAT {{ 'payable to the NRS' if r.net_payable >= 0 else 'reclaimable' }}</td>
+          <td class="num">{{ r.net_payable|abs|money }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>VAT account movement</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <tbody>
+        <tr><td>Balance owed at the start of the period</td><td class="num">{{ r.opening_balance|money }}</td></tr>
+        <tr><td>Net VAT arising this period</td><td class="num">{{ r.net_payable|money }}</td></tr>
+        <tr><td>Remitted during the period</td><td class="num">({{ r.paid_in_period|money }})</td></tr>
+        <tr class="grand"><td>Balance owed at the end of the period</td><td class="num">{{ r.closing_balance|money }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="hint">
+  Nigeria's standard VAT rate is {{ company.vat_rate }}%. From January 2026, input VAT incurred on taxable
+  supplies is fully claimable, and a claim may be made up to five years after the end of the tax period.
+  Returns and payment are due by the 21st day of the month following the period.
+  Record your remittance as a payment from the bank to <strong>2200 Output VAT Payable</strong>.
+</p>
+{% endblock %}

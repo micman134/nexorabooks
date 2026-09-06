@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Banking{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Banking</h1>
+  <div class="actions">
+    {% if can(user, 'entry') %}<a class="btn" href="/banking/transfer">Transfer between accounts</a>{% endif %}
+    {% if can(user, 'journal') %}<a class="btn btn-primary" href="/banking/new">Add an account</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Total cash and bank</div>
+    <div class="value {{ 'neg' if total < 0 }}">{{ total|money }}</div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Account</th><th>Bank</th><th>Number</th><th>Type</th>
+        <th class="num">Unreconciled items</th><th class="num">Balance</th><th></th></tr></thead>
+      <tbody>
+        {% for b in banks %}
+        <tr>
+          <td><a href="/banking/{{ b.id }}">{{ b.name }}</a>
+            {% if b.is_default %}<span class="badge badge-paid">default</span>{% endif %}
+            {% if not b.is_active %}<span class="badge badge-void">inactive</span>{% endif %}</td>
+          <td>{{ b.bank_name or '—' }}</td>
+          <td class="mono">{{ b.account_number or '—' }}</td>
+          <td>{{ b.account_type|title }}{{ ' · ' ~ b.currency_code if b.currency_code != 'NGN' }}</td>
+          <td class="num">{{ uncleared.get(b.id, 0) }}</td>
+          <td class="num strong {{ 'neg' if balances.get(b.id, 0) < 0 }}">{{ balances.get(b.id, 0)|money }}</td>
+          <td class="right">
+            {% if can(user, 'journal') %}<a class="btn btn-sm" href="/banking/{{ b.id }}/reconcile">Reconcile</a>{% endif %}
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="7" class="empty">No bank accounts set up.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="5">Total</td><td class="num">{{ total|money }}</td><td></td></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}

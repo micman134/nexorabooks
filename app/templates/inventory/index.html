@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Items &amp; stock{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Items &amp; stock</h1>
+  <div class="actions">
+    <a class="btn" href="/inventory/valuation">Stock valuation</a>
+    {% if can(user, 'entry') %}<a class="btn btn-primary" href="/inventory/new">New item</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Stock on hand</div><div class="value">{{ stock_value|money }}</div></div>
+  <div class="stat {{ 'warn' if low }}"><div class="label">Below reorder level</div><div class="value">{{ low|length }}</div></div>
+</div>
+
+<form class="filters" method="get">
+  <div class="field" style="flex:1"><label>Search</label>
+    <input type="search" name="q" value="{{ q }}" placeholder="Name, code, barcode or category"></div>
+  <div class="field"><label>Type</label>
+    <select name="kind" onchange="this.form.submit()">
+      <option value="">All</option>
+      <option value="STOCK" {{ 'selected' if kind == 'STOCK' }}>Stock items</option>
+      <option value="SERVICE" {{ 'selected' if kind == 'SERVICE' }}>Services</option>
+    </select></div>
+  <div class="check"><input type="checkbox" id="inact" name="inactive" value="1" {{ 'checked' if show_inactive }}>
+    <label for="inact">Include archived</label></div>
+  <button class="btn" type="submit">Search</button>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Code</th><th>Name</th><th>Type</th><th class="num">Sale price</th>
+        <th class="num">On hand</th><th class="num">Avg cost</th><th class="num">Stock value</th></tr></thead>
+      <tbody>
+        {% for i in items %}
+        <tr>
+          <td class="mono">{{ i.code }}</td>
+          <td><a href="/inventory/{{ i.id }}">{{ i.name }}</a>
+            {% if not i.is_active %}<span class="badge badge-void">archived</span>{% endif %}
+            {% if i.category %}<div class="muted small">{{ i.category }}</div>{% endif %}</td>
+          <td>{{ 'Stock' if i.item_type == 'STOCK' else 'Service' }}</td>
+          <td class="num">{{ i.sale_price|money }}</td>
+          <td class="num {{ 'neg' if i.qty_on_hand < 0 }}">
+            {% if i.item_type == 'STOCK' and i.track_stock %}{{ i.qty_on_hand|qty }} {{ i.unit }}
+              {% if i.reorder_level and i.qty_on_hand <= i.reorder_level %}<span class="badge badge-part">low</span>{% endif %}
+            {% else %}—{% endif %}</td>
+          <td class="num">{{ i.unit_cost|money if i.item_type == 'STOCK' else '—' }}</td>
+          <td class="num">{{ i.stock_value|money if i.item_type == 'STOCK' else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">No items yet.
+          {% if can(user, 'entry') %}<a href="/inventory/new">Add the first one</a>.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

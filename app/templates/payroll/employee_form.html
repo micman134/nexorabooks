@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}{{ 'New employee' if is_new else employee.full_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ 'New employee' if is_new else 'Edit ' ~ employee.full_name }}</h1>
+</div>
+
+<form method="post" action="/payroll/employees/save" style="max-width:960px">
+  {% if not is_new %}<input type="hidden" name="id" value="{{ employee.id }}">{% endif %}
+
+  <fieldset>
+    <legend>Who they are</legend>
+    <div class="field-row">
+      <div class="field"><label for="fn">First name *</label>
+        <input id="fn" name="first_name" value="{{ employee.first_name }}" required autofocus></div>
+      <div class="field"><label for="mn">Middle name</label>
+        <input id="mn" name="middle_name" value="{{ employee.middle_name }}"></div>
+      <div class="field"><label for="ln">Last name *</label>
+        <input id="ln" name="last_name" value="{{ employee.last_name }}" required></div>
+      <div class="field"><label for="sn">Staff number</label>
+        <input id="sn" name="staff_no" value="{{ employee.staff_no }}" placeholder="Assigned automatically"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="jt">Job title</label><input id="jt" name="job_title" value="{{ employee.job_title }}"></div>
+      <div class="field"><label for="dept">Department</label><input id="dept" name="department" value="{{ employee.department }}"></div>
+      <div class="field"><label for="st">Status</label>
+        <select id="st" name="status">
+          {% for value, label in statuses %}
+          <option value="{{ value }}" {{ 'selected' if employee.status == value }}>{{ label }}</option>
+          {% endfor %}
+        </select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="hd">Started</label>
+        <input id="hd" type="date" name="hire_date" value="{{ employee.hire_date.isoformat() if employee.hire_date else '' }}"></div>
+      <div class="field"><label for="ld">Left</label>
+        <input id="ld" type="date" name="leave_date" value="{{ employee.leave_date.isoformat() if employee.leave_date else '' }}"></div>
+      <div class="field"><label for="dob">Date of birth</label>
+        <input id="dob" type="date" name="date_of_birth" value="{{ employee.date_of_birth.isoformat() if employee.date_of_birth else '' }}"></div>
+      <div class="field"><label for="gd">Gender</label>
+        <select id="gd" name="gender">
+          <option value="">—</option>
+          <option value="Female" {{ 'selected' if employee.gender == 'Female' }}>Female</option>
+          <option value="Male" {{ 'selected' if employee.gender == 'Male' }}>Male</option>
+        </select></div>
+    </div>
+    <div class="check"><input type="checkbox" id="dir" name="is_director" value="1" {{ 'checked' if employee.is_director }}>
+      <label for="dir">This person is a director</label></div>
+    <div class="hint">Directors on payroll are taxed like any other employee. Directors' <em>fees</em> paid
+      on invoice are a different thing — record those as a bill with 15% withholding tax.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>How they are paid</legend>
+    <div class="field-row">
+      <div class="field"><label for="fq">Pay frequency</label>
+        <select id="fq" name="frequency">
+          {% for value, label in P.FREQUENCY_LABELS.items() %}
+          <option value="{{ value }}" {{ 'selected' if employee.frequency == value }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <div class="hint">How often you actually pay them.</div></div>
+      <div class="field"><label for="pb">Pay basis</label>
+        <select id="pb" name="pay_basis" onchange="basisChanged()">
+          {% for value, label in P.PAY_BASIS_LABELS.items() %}
+          <option value="{{ value }}" {{ 'selected' if employee.pay_basis == value }}>{{ label }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field" id="units-field"><label for="du">Usual days or hours per period</label>
+        <input id="du" class="num" name="default_units" value="{{ employee.default_units }}">
+        <div class="hint">You can change this on each run.</div></div>
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label for="bs">Basic <span id="per-label"></span> *</label>
+        <input id="bs" class="num" name="basic" value="{{ employee.basic|naira if employee.basic else '' }}" placeholder="0.00"></div>
+      <div class="field"><label for="hs">Housing allowance</label>
+        <input id="hs" class="num" name="housing" value="{{ employee.housing|naira if employee.housing else '' }}" placeholder="0.00"></div>
+      <div class="field"><label for="tr">Transport allowance</label>
+        <input id="tr" class="num" name="transport" value="{{ employee.transport|naira if employee.transport else '' }}" placeholder="0.00"></div>
+    </div>
+    <div class="alert alert-info">
+      Basic, housing and transport together are the <strong>pensionable emoluments</strong> —
+      pension is {{ settings.pension_employee }}% of that from the employee and
+      {{ settings.pension_employer }}% from you. Anything else you add below is paid but not pensionable
+      unless you tick the box.
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Other allowances and deductions</legend>
+    <div class="table-wrap">
+      <table class="lines">
+        <thead><tr>
+          <th style="width:22%">Name</th><th style="width:12%">Type</th>
+          <th style="width:13%" class="num">Amount</th><th style="width:9%" class="num">or %</th>
+          <th style="width:8%" class="center">Taxed</th>
+          <th style="width:9%" class="center">Pension</th>
+          <th style="width:9%" class="center">Cuts tax</th>
+          <th style="width:18%">Account</th>
+        </tr></thead>
+        <tbody id="comp-body">
+          {% set rows = employee.components | list %}
+          {% for c in rows + [None, None, None] %}
+          {% if loop.index <= (rows|length) + 3 %}
+          <tr class="comp-row">
+            <td><input name="comp_name" value="{{ c.name if c else '' }}" placeholder="e.g. Leave allowance"></td>
+            <td><select name="comp_kind">
+              <option value="EARNING" {{ 'selected' if c and c.kind == 'EARNING' }}>Allowance</option>
+              <option value="DEDUCTION" {{ 'selected' if c and c.kind == 'DEDUCTION' }}>Deduction</option>
+            </select></td>
+            <td><input class="num" name="comp_amount" value="{{ c.amount|naira if c and c.amount else '' }}" placeholder="0.00"></td>
+            <td><input class="num" name="comp_rate" value="{{ c.rate if c else '' }}" placeholder=""></td>
+            <td class="center"><input type="checkbox" name="comp_taxable" value="1" {{ 'checked' if (c and c.taxable) or not c }}></td>
+            <td class="center"><input type="checkbox" name="comp_pensionable" value="1" {{ 'checked' if c and c.pensionable }}></td>
+            <td class="center"><input type="checkbox" name="comp_reduces_tax" value="1" {{ 'checked' if c and c.reduces_tax }}></td>
+            <td><select name="comp_account">
+              <option value="">Default</option>
+              {% for a in accounts %}
+              <option value="{{ a.id }}" {{ 'selected' if c and c.account_id == a.id }}>{{ a.code }} {{ a.name }}</option>
+              {% endfor %}
+            </select></td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="btn-row" style="margin-top:.5rem">
+      <button class="btn btn-sm" type="button" id="add-comp">Add another line</button>
+    </div>
+    <div class="hint">
+      <strong>Cuts tax</strong> is for deductions the law lets you take off before PAYE —
+      life assurance premiums, NHIS, approved donations. Leave it unticked for union dues,
+      cooperative savings and anything else voluntary.
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tax and statutory</legend>
+    <div class="field-row">
+      <div class="field"><label for="tin">Tax Identification Number</label>
+        <input id="tin" name="tin" value="{{ employee.tin }}"></div>
+      <div class="field"><label for="nin">NIN</label><input id="nin" name="nin" value="{{ employee.nin }}"></div>
+      <div class="field"><label for="sr">State of residence</label>
+        <input id="sr" name="state_of_residence" value="{{ employee.state_of_residence }}" placeholder="Where their PAYE is remitted">
+        <div class="hint">PAYE goes to the IRS of the state where they live.</div></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="pfa">Pension fund administrator</label>
+        <input id="pfa" name="pfa_name" value="{{ employee.pfa_name }}"></div>
+      <div class="field"><label for="pin">Pension PIN (RSA)</label>
+        <input id="pin" name="pension_pin" value="{{ employee.pension_pin }}"></div>
+      <div class="field"><label for="nhf">NHF number</label>
+        <input id="nhf" name="nhf_number" value="{{ employee.nhf_number }}"></div>
+    </div>
+    <div class="field-row">
+      <div class="check"><input type="checkbox" id="pe" name="pension_enrolled" value="1" {{ 'checked' if employee.pension_enrolled or is_new }}>
+        <label for="pe">In the pension scheme</label></div>
+      <div class="check"><input type="checkbox" id="ne" name="nhf_enrolled" value="1" {{ 'checked' if employee.nhf_enrolled or is_new }}>
+        <label for="ne">Contributes to NHF</label></div>
+      <div class="check"><input type="checkbox" id="he" name="nhis_enrolled" value="1" {{ 'checked' if employee.nhis_enrolled }}>
+        <label for="he">In the NHIS scheme</label></div>
+      <div class="check"><input type="checkbox" id="pex" name="paye_exempt" value="1" {{ 'checked' if employee.paye_exempt }}>
+        <label for="pex">Exempt from PAYE</label></div>
+    </div>
+    <div class="field" style="max-width:320px"><label for="rent">Annual rent they pay</label>
+      <input id="rent" class="num" name="annual_rent_paid" value="{{ employee.annual_rent_paid|naira if employee.annual_rent_paid else '' }}" placeholder="0.00">
+      <div class="hint">Rent relief is {{ settings.rent_relief_rate }}% of this, capped at
+        {{ settings.rent_relief_cap|money }} a year. Leave blank if they own their home or you house them —
+        neither attracts relief. Keep their receipts.</div></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Contact and bank</legend>
+    <div class="field-row">
+      <div class="field"><label for="em">Email</label><input id="em" type="email" name="email" value="{{ employee.email }}"></div>
+      <div class="field"><label for="ph">Phone</label><input id="ph" name="phone" value="{{ employee.phone }}"></div>
+    </div>
+    <div class="field"><label for="ad">Address</label><textarea id="ad" name="address">{{ employee.address }}</textarea></div>
+    <div class="field-row">
+      <div class="field"><label for="bn">Bank</label><input id="bn" name="bank_name" value="{{ employee.bank_name }}"></div>
+      <div class="field"><label for="ba">Account number</label><input id="ba" name="bank_account_no" value="{{ employee.bank_account_no }}"></div>
+      <div class="field"><label for="an">Account name</label><input id="an" name="bank_account_name" value="{{ employee.bank_account_name }}"></div>
+    </div>
+    <div class="field"><label for="nt">Notes</label><textarea id="nt" name="notes">{{ employee.notes }}</textarea></div>
+  </fieldset>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn" href="{{ '/payroll/employees' if is_new else '/payroll/employees/' ~ employee.id }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function basisChanged() {
+  var basis = document.getElementById('pb').value;
+  var isRate = basis !== 'FIXED';
+  document.getElementById('units-field').style.display = isRate ? '' : 'none';
+  var label = document.getElementById('per-label');
+  label.textContent = basis === 'DAILY_RATE' ? '(per day)'
+                    : basis === 'HOURLY_RATE' ? '(per hour)' : '(per period)';
+}
+document.addEventListener('DOMContentLoaded', function () {
+  basisChanged();
+  document.getElementById('add-comp').addEventListener('click', function () {
+    var body = document.getElementById('comp-body');
+    var clone = body.querySelector('.comp-row').cloneNode(true);
+    clone.querySelectorAll('input').forEach(function (i) {
+      if (i.type === 'checkbox') i.checked = (i.name === 'comp_taxable');
+      else i.value = '';
+    });
+    clone.querySelectorAll('select').forEach(function (s) { s.selectedIndex = 0; });
+    body.appendChild(clone);
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Run payroll{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Run payroll</h1></div>
+
+<form method="post" action="/payroll/runs/create" style="max-width:640px">
+  <div class="card">
+    <div class="card-body">
+      <div class="field"><label for="fq">Who are you paying?</label>
+        <select id="fq" name="frequency">
+          {% for value, label in P.FREQUENCY_LABELS.items() %}
+          <option value="{{ value }}">{{ label }} staff — {{ counts.get(value, 0) }} {{ 'person' if counts.get(value, 0) == 1 else 'people' }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="ps">Period from</label>
+          <input id="ps" type="date" name="period_start" value="{{ start.isoformat() }}" required></div>
+        <div class="field"><label for="pe">Period to</label>
+          <input id="pe" type="date" name="period_end" value="{{ end.isoformat() }}" required></div>
+        <div class="field"><label for="pd">Pay date</label>
+          <input id="pd" type="date" name="pay_date" value="{{ pay_date.isoformat() }}" required></div>
+      </div>
+      <div class="alert alert-info">
+        This creates a <strong>draft</strong>. Nothing reaches the ledger until you check it
+        and press Post. For anyone on a daily or hourly rate you can set the days or hours
+        worked before posting.
+      </div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Create the draft run</button>
+    <a class="btn" href="/payroll">Cancel</a>
+  </div>
+</form>
+{% endblock %}

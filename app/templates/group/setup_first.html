@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Group accounts{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Group accounts</h1>
+    <div class="muted small">Several companies, read as one</div>
+  </div>
+  <div class="actions no-print">
+    {% if can(user, 'admin') %}
+    <a class="btn btn-primary" href="/group/settings">Set the group up</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p>If you run more than one company here, this screen adds them up: one
+      profit and loss, one balance sheet, and one figure for what the whole
+      thing is worth.</p>
+
+    <p class="muted">It only reads. Nothing on this screen posts an entry or
+      changes a single company's books — close it and every company is exactly
+      as it was.</p>
+
+    {% if group.members|length < 2 %}
+    <p><strong>There is only one set of books at the moment.</strong>
+      A group needs at least two companies.
+      <a href="/companies">Add another company</a> and this screen will come to
+      life.</p>
+    {% else %}
+    <p><strong>No group has been set up yet.</strong>
+      There {{ 'is' if group.members|length == 1 else 'are' }}
+      {{ group.members|length }} companies on this computer.
+      {% if can(user, 'admin') %}
+      <a href="/group/settings">Choose which of them belong to the group</a>,
+      and this screen will show them together.
+      {% else %}
+      Ask an administrator to choose which of them belong to the group.
+      {% endif %}
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

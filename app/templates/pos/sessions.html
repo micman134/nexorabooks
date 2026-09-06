@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Till sessions{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Till sessions</h1>
+    <div class="muted small">
+      Every shift, what it took, and whether the drawer agreed
+    </div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn btn-primary" href="/pos">Go to the till</a>
+  </div>
+</div>
+
+{% if short %}
+<div class="alert alert-warning">
+  {{ short }} of these session{{ '' if short == 1 else 's' }} closed short.
+  One is a mistake; a pattern is worth looking into.
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Session</th><th>Till</th><th>Opened</th><th>Closed</th><th>By</th>
+          <th class="num">Expected</th><th class="num">Counted</th>
+          <th class="num">Difference</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in rows %}
+        <tr>
+          <td><a href="/pos/sessions/{{ s.id }}">{{ s.number }}</a></td>
+          <td>{{ s.name }}</td>
+          <td class="small">{{ s.opened_at.strftime('%d %b %H:%M') }}</td>
+          <td class="small">
+            {% if s.closed_at %}{{ s.closed_at.strftime('%d %b %H:%M') }}
+            {% else %}<span class="badge accent">still open</span>{% endif %}
+          </td>
+          <td class="small muted">
+            {{ (s.closed_by or s.opened_by).display_name if (s.closed_by or s.opened_by) }}
+          </td>
+          <td class="num">{{ s.expected_cash|money if not s.is_open else '—' }}</td>
+          <td class="num">{{ s.counted_cash|money if not s.is_open else '—' }}</td>
+          <td class="num {{ 'neg' if s.difference < 0 }}">
+            {% if s.is_open %}—
+            {% elif s.difference == 0 %}<span class="muted">balanced</span>
+            {% else %}{{ s.difference|money }}{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="muted">No till has been opened yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

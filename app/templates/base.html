@@ -1,0 +1,172 @@
+{% set fav_symbol = (company.currency_symbol if company and company.currency_symbol else '₦')[:3] %}
+<!doctype html>
+<html lang="en" data-theme="{{ theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ company.name if company else APP_NAME }}{% endblock %} · {{ APP_NAME }}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/themes.css">
+  <meta name="theme-color" content="{{ themes.get(theme).swatch[0] }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='{{ themes.get(theme).swatch[1]|urlencode }}'/><text y='{{ 72 if fav_symbol|length < 2 else 66 }}' x='50' text-anchor='middle' font-size='{{ 62 if fav_symbol|length < 2 else 40 }}' fill='white' font-family='sans-serif'>{{ fav_symbol|urlencode }}</text></svg>">
+</head>
+<body data-symbol="{{ company.currency_symbol if company else '₦' }}">
+<div class="shell">
+  <aside class="sidebar no-print">
+    <div class="brand">
+      {% if company and company.logo_file %}
+      <img src="/company-logo" alt="" class="brand-logo">
+      {% endif %}
+      {{ company.name if company else APP_NAME }}
+      <small>{{ APP_NAME }} {{ APP_VERSION }}</small>
+    </div>
+    {% if companies|length > 1 %}
+    <div class="company-switch">
+      <label for="coswitch">Working on</label>
+      <select id="coswitch" onchange="switchCompany(this.value)">
+        {% for c in companies %}
+        <option value="{{ c.slug }}" {{ 'selected' if c.slug == company_slug }}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <nav class="nav">
+      {% set p = request.url.path %}
+      <a href="/" class="{{ 'active' if p == '/' }}">Dashboard</a>
+
+      <div class="nav-group">Sales</div>
+      <a href="/sales/invoices" class="{{ 'active' if p.startswith('/sales/invoices') }}">Invoices</a>
+      <a href="/sales/quotes" class="{{ 'active' if p.startswith('/sales/quotes') }}">Quotations</a>
+      <a href="/sales/credit-notes" class="{{ 'active' if p.startswith('/sales/credit-notes') }}">Credit notes</a>
+      <a href="/receipts" class="{{ 'active' if p.startswith('/receipts') }}">Receipts</a>
+      <a href="/contacts?kind=customer" class="{{ 'active' if p.startswith('/contacts') and request.query_params.get('kind') != 'vendor' }}">Customers</a>
+
+      <div class="nav-group">Purchases</div>
+      <a href="/purchases/bills" class="{{ 'active' if p.startswith('/purchases/bills') }}">Bills</a>
+      <a href="/purchases/orders" class="{{ 'active' if p.startswith('/purchases/orders') }}">Purchase orders</a>
+      <a href="/purchases/debit-notes" class="{{ 'active' if p.startswith('/purchases/debit-notes') }}">Debit notes</a>
+      <a href="/purchases/expense/new" class="{{ 'active' if p.startswith('/purchases/expense') }}">Record an expense</a>
+      <a href="/payments" class="{{ 'active' if p.startswith('/payments') }}">Payments</a>
+      <a href="/contacts?kind=vendor" class="{{ 'active' if p.startswith('/contacts') and request.query_params.get('kind') == 'vendor' }}">Suppliers</a>
+      <a href="/recurring" class="{{ 'active' if p.startswith('/recurring') }}">Recurring</a>
+
+      <div class="nav-group">Staff money</div>
+      <a href="/requisitions" class="{{ 'active' if p.startswith('/requisitions') }}">Requisitions</a>
+
+      <div class="nav-group">Payroll</div>
+      <a href="/payroll" class="{{ 'active' if p == '/payroll' }}">Pay runs</a>
+      <a href="/payroll/employees" class="{{ 'active' if p.startswith('/payroll/employees') }}">Employees</a>
+      <a href="/payroll/remittances" class="{{ 'active' if p.startswith('/payroll/remittances') }}">Remittances due</a>
+      <a href="/payroll/reports/schedules" class="{{ 'active' if p.startswith('/payroll/reports') }}">PAYE &amp; pension schedules</a>
+
+      <div class="nav-group">Shop</div>
+      <a href="/pos" class="{{ 'active' if p == '/pos' or p.startswith('/pos/sale') or p.startswith('/pos/close') }}">Till</a>
+      <a href="/pos/sessions" class="{{ 'active' if p.startswith('/pos/sessions') }}">Till sessions</a>
+
+      <div class="nav-group">Operations</div>
+      <a href="/inventory" class="{{ 'active' if p.startswith('/inventory') and not p.startswith('/inventory/locations') and not p.startswith('/inventory/serials') and not p.startswith('/inventory/expiring') }}">Items &amp; stock</a>
+      <a href="/inventory/locations" class="{{ 'active' if p.startswith('/inventory/locations') or p.startswith('/inventory/transfer') }}">Stores &amp; transfers</a>
+      <a href="/projects" class="{{ 'active' if p.startswith('/projects') }}">Projects &amp; jobs</a>
+      <a href="/landed-costs" class="{{ 'active' if p.startswith('/landed-costs') }}">Landed costs</a>
+      <a href="/assets" class="{{ 'active' if p.startswith('/assets') and not p.startswith('/assets/depreciation') }}">Fixed assets</a>
+      <a href="/assets/depreciation" class="{{ 'active' if p.startswith('/assets/depreciation') }}">Depreciation</a>
+      <a href="/banking" class="{{ 'active' if p.startswith('/banking') and not p.startswith('/banking/import') and '/import' not in p }}">Banking</a>
+      <a href="/banking/imports" class="{{ 'active' if '/import' in p and p.startswith('/banking') }}">Bank statements</a>
+      <a href="/archive" class="{{ 'active' if p.startswith('/archive') }}">Filed paperwork</a>
+      <a href="/journals" class="{{ 'active' if p.startswith('/journals') }}">Journals</a>
+      <a href="/accounts" class="{{ 'active' if p.startswith('/accounts') }}">Chart of accounts</a>
+
+      <div class="nav-group">Insights</div>
+      <a href="/cash/timeline" class="{{ 'active' if p.startswith('/cash/timeline') or p == '/cash' }}">What is coming</a>
+      <a href="/cash/collections" class="{{ 'active' if p.startswith('/cash/collections') }}">Who to chase</a>
+      <a href="/cash/what-if" class="{{ 'active' if p.startswith('/cash/what-if') }}">What if&hellip;</a>
+      <a href="/insights/brief" class="{{ 'active' if p.startswith('/insights/brief') }}">Today&#39;s brief</a>
+      <a href="/insights/why" class="{{ 'active' if p.startswith('/insights/why') }}">Why did that change?</a>
+      <a href="/insights/board-pack" class="{{ 'active' if p.startswith('/insights/board') }}">Board pack</a>
+
+      <div class="nav-group">Reports</div>
+      <a href="/reports" class="{{ 'active' if p == '/reports' }}">All reports</a>
+      <a href="/reports/profit-and-loss" class="{{ 'active' if p.startswith('/reports/profit') }}">Profit &amp; loss</a>
+      <a href="/reports/balance-sheet" class="{{ 'active' if p.startswith('/reports/balance') }}">Balance sheet</a>
+      <a href="/reports/trial-balance" class="{{ 'active' if p.startswith('/reports/trial') }}">Trial balance</a>
+      <a href="/reports/vat" class="{{ 'active' if p.startswith('/reports/vat') }}">VAT return</a>
+      <a href="/reports/wht" class="{{ 'active' if p.startswith('/reports/wht') }}">Withholding tax</a>
+      <a href="/budgets" class="{{ 'active' if p.startswith('/budgets') }}">Budget vs actual</a>
+
+      {% if can(user, 'admin') %}
+      <div class="nav-group">Administration</div>
+      <a href="/group" class="{{ 'active' if p.startswith('/group') }}">Group accounts</a>
+      <a href="/companies" class="{{ 'active' if p.startswith('/companies') }}">Companies</a>
+      <a href="/settings" class="{{ 'active' if p == '/settings' }}">Settings</a>
+      <a href="/settings/users" class="{{ 'active' if p.startswith('/settings/users') }}">Users</a>
+      <a href="/settings/backup" class="{{ 'active' if p.startswith('/settings/backup') }}">Backup &amp; restore</a>
+      {% endif %}
+    </nav>
+  </aside>
+
+  <div class="main">
+    <header class="topbar no-print">
+      <form class="search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search invoices, customers, items, journals…"
+               value="{{ request.query_params.get('q', '') if request.url.path == '/search' else '' }}"
+               aria-label="Search">
+      </form>
+      <div class="who">
+        {% if user %}
+          <span class="muted">{{ user.full_name or user.username }} · {{ ROLE_LABELS.get(user.role, user.role) }}</span>
+          <a href="/account" class="btn btn-sm">My account</a>
+          <a href="/logout" class="btn btn-sm">Sign out</a>
+        {% endif %}
+      </div>
+    </header>
+
+    <main class="content">
+      {% for f in flashes %}
+        <div class="alert alert-{{ f.level }}">{{ f.message }}</div>
+      {% endfor %}
+      {% if licence and not licence.can_post %}
+        <div class="alert alert-danger">
+          <strong>{{ licence.headline }}.</strong> {{ licence.explanation }}
+          {% if can(user, 'admin') %}
+          <a href="/settings/licence">{{ 'Renew it' if licence.kind == 'EXPIRED' else 'Buy a licence' }}</a> —
+          the price and how to pay are on that screen.{% endif %}
+        </div>
+      {% elif licence and licence.kind == 'TRIAL' and licence.days_left <= 7 %}
+        <div class="alert alert-warning">
+          {{ licence.headline }}. Your books stay yours after that — what pauses is
+          entering new transactions.
+          {% if can(user, 'admin') %}<a href="/settings/licence">See what it costs</a>.{% endif %}
+        </div>
+      {% elif licence and licence.kind == 'LICENSED' and licence.licence
+              and not licence.licence.perpetual and licence.days_left <= 21 %}
+        {# Three weeks is enough notice to pay without it becoming an emergency,
+           and short enough that nobody is nagged for a year. #}
+        <div class="alert alert-warning">
+          Your licence ends in {{ licence.days_left }}
+          {{ 'day' if licence.days_left == 1 else 'days' }}, on
+          {{ licence.licence.expires|dt }}.
+          {% if can(user, 'admin') %}<a href="/settings/licence">Renew it now</a> so
+          nothing pauses.{% else %}Ask an administrator to renew it.{% endif %}
+        </div>
+      {% endif %}
+      {% if company and company.lock_date and request.url.path == '/' %}
+        <div class="alert alert-info">Books are locked up to {{ company.lock_date|dt }}. Entries on or before that date cannot be changed.</div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<script>
+function switchCompany(slug) {
+  if (!slug) return;
+  if (confirm('Open a different company?\n\nEach company keeps its own books and its own '
+            + 'user accounts, so you will be asked to sign in again.')) {
+    window.location = '/companies/switch/' + slug;
+  } else {
+    window.location.reload();
+  }
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

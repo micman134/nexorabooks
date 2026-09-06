@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, void_button, attachments_panel %}
+{% block title %}{{ inv.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ label }} {{ inv.number }} {{ status_badge(inv.status) }}</h1>
+    <div class="muted small">{{ inv.contact.name }} · {{ inv.date|dt }}
+      {% if inv.due_date and inv.doc_type == 'INVOICE' %} · due {{ inv.due_date|dt }}{% endif %}</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/sales/{{ slug }}/{{ inv.id }}/print" target="_blank">Print</a>
+    <a class="btn" href="/sales/{{ slug }}/{{ inv.id }}/pdf" target="_blank">PDF</a>
+    {% if can(user, 'entry') and inv.status != 'VOID' %}
+    <a class="btn" href="/send/invoice/{{ inv.id }}">Email it</a>
+    {% endif %}
+    {% if inv.status == 'DRAFT' and can(user, 'entry') %}
+      <a class="btn" href="/sales/{{ slug }}/{{ inv.id }}/edit">Edit</a>
+      {% if inv.doc_type != 'QUOTE' %}
+      <form method="post" action="/sales/{{ slug }}/{{ inv.id }}/post" style="display:inline">
+        <button class="btn btn-primary" type="submit">Post to the ledger</button></form>
+      {% else %}
+      <form method="post" action="/sales/quotes/{{ inv.id }}/convert" style="display:inline">
+        <button class="btn btn-primary" type="submit">Convert to invoice</button></form>
+      {% endif %}
+    {% endif %}
+    {% if inv.status in ('POSTED','PART_PAID') and inv.doc_type == 'INVOICE' and can(user, 'entry') %}
+      <a class="btn btn-primary" href="/receipts/new?invoice={{ inv.id }}">Record a receipt</a>
+      <form method="post" action="/sales/invoices/{{ inv.id }}/credit-note" style="display:inline">
+        <button class="btn" type="submit">Raise a credit note</button></form>
+    {% endif %}
+    {% if inv.status not in ('DRAFT','VOID') and can(user, 'void') %}{{ void_button('/sales/' ~ slug ~ '/' ~ inv.id ~ '/void') }}{% endif %}
+    {% if can(user, 'delete') %}
+      <button class="btn btn-danger" type="button"
+              onclick="document.getElementById('delete-box').hidden = false; this.hidden = true;">
+        Delete
+      </button>
+    {% endif %}
+  </div>
+</div>
+
+{% if can(user, 'delete') %}
+<div class="card" id="delete-box" hidden style="max-width:640px; border-color:var(--danger)">
+  <div class="card-head"><h2>Delete {{ inv.number }}</h2></div>
+  <div class="card-body">
+    {% if delete_refused %}
+    <div class="alert alert-danger">{{ delete_refused }}</div>
+    {% else %}
+    <p class="small">
+      {% if inv.status == 'DRAFT' %}
+      This draft has never been posted, so nothing in your ledger changes.
+      {% else %}
+      <strong>This cannot be undone and leaves no record.</strong>
+      {{ inv.number }}, its {{ inv.lines|length }} line{{ 's' if inv.lines|length != 1 }} and
+      its entries in the ledger are all removed. Your trial balance will still agree
+      afterwards — the money is unwound, not abandoned — but nothing anywhere will
+      show that this invoice ever existed.
+      {% endif %}
+    </p>
+    <p class="small">If you only want to correct it, <em>void</em> it instead: that
+      reverses it and leaves it visible, marked VOID, which is what an auditor expects
+      to see.</p>
+    <form method="post" action="/sales/{{ slug }}/{{ inv.id }}/delete">
+      <div class="field">
+        <label for="confirm">Type <strong>{{ inv.number }}</strong> to confirm</label>
+        <input id="confirm" name="confirm" required autocomplete="off"
+               placeholder="{{ inv.number }}" style="max-width:16rem">
+      </div>
+      <button class="btn btn-danger" type="submit">Delete it for good</button>
+      <button class="btn" type="button"
+              onclick="document.getElementById('delete-box').hidden = true;">Cancel</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if inv.status == 'DRAFT' %}
+<div class="alert alert-info">This is a draft. Nothing has been posted to the ledger and it does not appear in any report yet.</div>
+{% elif inv.status == 'VOID' %}
+<div class="alert alert-warning">This document has been voided. A reversing journal was posted; the original stays on record for audit.</div>
+{% endif %}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Total</div><div class="value">{{ inv.total|money }}</div>
+    <div class="sub">Net {{ inv.subtotal|money }} + VAT {{ inv.vat_total|money }}</div></div>
+  <div class="stat"><div class="label">Settled</div><div class="value">{{ inv.amount_paid|money }}</div></div>
+  <div class="stat accent"><div class="label">Outstanding</div>
+    <div class="value">{{ inv.balance_due|money if inv.status in ('POSTED','PART_PAID') else '—' }}</div></div>
+  {% if inv.wht_total %}
+  <div class="stat"><div class="label">Expected WHT deduction</div><div class="value">{{ inv.wht_total|money }}</div>
+    <div class="sub">{{ inv.wht_code.name if inv.wht_code }}</div></div>
+  {% endif %}
+  {% if inv.vat_withheld_expected %}
+  <div class="stat"><div class="label">VAT withheld at source</div>
+    <div class="value">{{ inv.vat_withheld_expected|money }}</div>
+    <div class="sub">Expect {{ inv.expected_cash|money }} in cash</div></div>
+  {% endif %}
+</div>
+
+{% if inv.vat_withheld_expected and inv.status in ('POSTED', 'PART_PAID') %}
+<div class="alert alert-info no-print">
+  <b>{{ inv.contact.name }} withholds VAT at source.</b>
+  They will pay {{ inv.expected_cash|money }} and remit
+  {{ inv.vat_withheld_expected|money }} of VAT to the NRS themselves. When you record the
+  receipt, put that figure in "VAT withheld at source" — it comes off your VAT return
+  rather than being lost.
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><h2>Lines</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>#</th><th>Description</th><th>Account</th><th class="num">Qty</th>
+        <th class="num">Unit price</th><th class="num">Disc</th><th>VAT</th><th class="num">Net</th><th class="num">VAT</th></tr></thead>
+      <tbody>
+        {% for l in inv.lines %}
+        <tr>
+          <td>{{ l.line_no }}</td>
+          <td>{{ l.description }}{% if l.item %}<div class="muted small">{{ l.item.code }}</div>{% endif %}</td>
+          <td class="small">{{ (l.account.code ~ ' ' ~ l.account.name) if l.account else '—' }}</td>
+          <td class="num">{{ l.qty|qty }}</td>
+          <td class="num">{{ l.unit_price|money }}</td>
+          <td class="num">{{ l.discount_pct }}%</td>
+          <td class="small">{{ l.tax_code.code if l.tax_code else '—' }}</td>
+          <td class="num">{{ l.net|money }}</td>
+          <td class="num">{{ l.vat_amount|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="7">Subtotal</td><td class="num">{{ inv.subtotal|money }}</td><td class="num">{{ inv.vat_total|money }}</td></tr>
+        <tr><td colspan="8">Total</td><td class="num">{{ inv.total|money }}</td></tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+{% if allocations %}
+<div class="card">
+  <div class="card-head"><h3>Payments applied</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Date</th><th>Receipt</th><th class="num">Cash</th><th class="num">WHT credit</th><th class="num">Discount</th></tr></thead>
+      <tbody>
+        {% for a in allocations %}
+        <tr>
+          <td>{{ a.payment.date|dt }}</td>
+          <td><a href="/receipts/{{ a.payment.id }}">{{ a.payment.number }}</a>
+            {% if a.payment.status == 'VOID' %}<span class="badge badge-void">void</span>{% endif %}</td>
+          <td class="num">{{ a.amount|money }}</td>
+          <td class="num">{{ a.wht_amount|money }}</td>
+          <td class="num">{{ a.discount|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if entry %}
+<div class="card">
+  <div class="card-head"><h3>Ledger posting</h3>
+    <div class="actions"><a class="btn btn-sm" href="/journals/{{ entry.id }}">Journal {{ entry.number }}</a></div></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Account</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+      <tbody>
+        {% for l in entry.lines %}
+        <tr><td>{{ l.account.code }} — {{ l.account.name }}</td><td class="small">{{ l.memo }}</td>
+          <td class="num">{{ l.debit|money if l.debit else '' }}</td>
+          <td class="num">{{ l.credit|money if l.credit else '' }}</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="2">Totals</td><td class="num">{{ entry.total_debit|money }}</td>
+        <td class="num">{{ entry.total_credit|money }}</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if inv.memo %}<div class="card"><div class="card-body"><h3>Note</h3><p>{{ inv.memo }}</p></div></div>{% endif %}
+
+{% if ei_on and ei_wanted %}
+<div class="card">
+  <div class="card-head"><h3>Electronic invoicing</h3></div>
+  <div class="card-body">
+    {% if ei and ei.status == 'CLEARED' %}
+      {% if ei.was_a_rehearsal %}
+      <div class="alert alert-info">
+        <p style="margin-bottom:.4rem"><strong>Rehearsal only — this invoice has not been filed.</strong></p>
+        <p style="margin-bottom:0">Everything the Revenue Service would check has passed. Nothing has
+          been sent to them, and this reference is not a real one.</p>
+      </div>
+      {% else %}
+      <p class="ok"><strong>Cleared.</strong> This invoice may go to the customer.</p>
+      {% endif %}
+      <table class="data">
+        <tr><th style="width:210px">Reference number</th><td class="mono">{{ ei.irn }}</td></tr>
+        {% if ei.cleared_at %}<tr><th>Cleared</th><td>{{ ei.cleared_at.strftime('%d %b %Y, %H:%M') }}</td></tr>{% endif %}
+        {% if ei.csid %}<tr><th>Cryptographic stamp</th><td class="mono small">{{ ei.csid[:48] }}…</td></tr>{% endif %}
+      </table>
+
+    {% elif ei and ei.status == 'REJECTED' %}
+      <div class="alert alert-danger">
+        <p style="margin-bottom:.4rem"><strong>Not accepted.</strong> Something on the invoice or in
+          your settings has to change before this can go.</p>
+        <p style="margin-bottom:0">{{ ei.last_error }}</p>
+      </div>
+
+    {% elif ei and ei.status == 'FAILED' %}
+      <div class="alert alert-warning">
+        <p style="margin-bottom:.4rem"><strong>It did not get through.</strong> Nothing is lost — it is
+          in the queue and will keep trying.</p>
+        <p style="margin-bottom:0">{{ ei.last_error }}
+          {% if ei.retry_after %}Next try {{ ei.retry_after.strftime('%d %b, %H:%M') }}.{% endif %}</p>
+      </div>
+
+    {% else %}
+      <p class="muted">Not sent yet.</p>
+    {% endif %}
+
+    {% if can(user, 'entry') and (not ei or ei.status != 'CLEARED') %}
+    <form method="post" action="/sales/{{ slug }}/{{ inv.id }}/clear" style="margin-top:.8rem">
+      <button class="btn" type="submit">Send for clearance</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{{ attachments_panel(user, inv.doc_type, inv.id, files) }}
+
+{% endblock %}

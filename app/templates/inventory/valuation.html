@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Stock valuation{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Stock valuation</h1>
+  <div class="actions">
+    <button class="btn" onclick="window.print()">Print</button>
+    <a class="btn" href="/inventory">Back to items</a>
+  </div>
+</div>
+
+{% if difference %}
+<div class="alert alert-warning">
+  The inventory ledger account holds {{ ledger|money }} but the item records total {{ total|money }} —
+  a difference of {{ difference|money }}. This usually means a manual journal was posted straight to the
+  inventory account without a matching stock movement.
+</div>
+{% else %}
+<div class="alert alert-success">The item records agree exactly with the inventory ledger account.</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Code</th><th>Item</th><th class="num">On hand</th><th>Unit</th>
+        <th class="num">Average cost</th><th class="num">Value</th><th class="num">Sale price</th><th class="num">Margin</th></tr></thead>
+      <tbody>
+        {% for i in items %}
+        <tr>
+          <td class="mono">{{ i.code }}</td>
+          <td><a href="/inventory/{{ i.id }}">{{ i.name }}</a></td>
+          <td class="num {{ 'neg' if i.qty_on_hand < 0 }}">{{ i.qty_on_hand|qty }}</td>
+          <td>{{ i.unit }}</td>
+          <td class="num">{{ i.unit_cost|money }}</td>
+          <td class="num strong">{{ i.stock_value|money }}</td>
+          <td class="num">{{ i.sale_price|money }}</td>
+          <td class="num">{{ ((i.sale_price - i.unit_cost) * 100 // i.sale_price) ~ '%' if i.sale_price else '—' }}</td>
+        </tr>
+        {% else %}<tr><td colspan="8" class="empty">No stock items.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="5">Total stock at cost</td><td class="num">{{ total|money }}</td><td colspan="2"></td></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}

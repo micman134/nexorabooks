@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Email the payslips{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Email the payslips</h1>
+    <div class="muted small">{{ run.number }} · {{ period }} · one message each</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/payroll/runs/{{ run.id }}/payslips">Back to the payslips</a>
+  </div>
+</div>
+
+{% if not mail.ready %}
+<div class="alert alert-warning">
+  Email is not set up yet, so nothing can be sent — it takes about a minute in
+  <a href="/settings/email">Settings &rsaquo; Email</a>. Until then, the
+  payslips screen prints them all to one PDF.
+</div>
+{% endif %}
+
+<div class="alert alert-info">
+  Each person gets their own message, with their own payslip attached, at the
+  address on their own employee record. Nobody is copied on anybody else's.
+</div>
+
+{% if missing %}
+<div class="alert alert-warning">
+  <strong>{{ missing|length }}
+    {{ 'person has' if missing|length == 1 else 'people have' }} no email
+    address on file</strong> and will not be sent anything:
+  {{ missing|map(attribute=0)|map(attribute='employee_name')|join(', ') }}.
+  Add an address on the employee record, or print theirs instead.
+</div>
+{% endif %}
+
+<form method="post" action="/send/payslips/run/{{ run.id }}">
+  <div class="card">
+    <div class="card-head">
+      <h2>{{ ready|length }} to send</h2>
+      <button class="btn btn-primary" type="submit"
+              {{ 'disabled' if not mail.ready or not ready }}>
+        Send {{ ready|length }} payslip{{ '' if ready|length == 1 else 's' }}
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th style="width:3rem"></th><th>Staff</th><th>Goes to</th>
+            <th class="num">Net pay</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for slip, address in ready %}
+          <tr>
+            <td><input type="checkbox" name="slip_id" value="{{ slip.id }}" checked></td>
+            <td>{{ slip.employee_name }}<div class="muted small">{{ slip.staff_no }}</div></td>
+            <td>{{ address }}</td>
+            <td class="num">{{ slip.net_pay|money }}</td>
+            <td class="small muted">
+              {% if slip.id in already %}sent once already{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {% for slip, _address in missing %}
+          <tr class="muted">
+            <td>—</td>
+            <td>{{ slip.employee_name }}<div class="muted small">{{ slip.staff_no }}</div></td>
+            <td><em>no email address</em></td>
+            <td class="num">{{ slip.net_pay|money }}</td>
+            <td class="small">
+              <a href="/payroll/payslips/{{ slip.id }}/pdf">print instead</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+{% endblock %}

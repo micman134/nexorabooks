@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Backup &amp; restore{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Backup and restore</h1></div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Take a backup</h2></div>
+    <div class="card-body">
+      <p class="muted small">A backup is a single file containing everything — accounts, invoices, journals,
+        users. Take one at least weekly, and keep a copy off this computer.</p>
+      <div class="btn-row">
+        <form method="post" action="/settings/backup" style="display:inline">
+          <button class="btn btn-primary" type="submit">Back up now</button></form>
+        <a class="btn" href="/settings/backup/download-live">Back up and download</a>
+      </div>
+      <p class="hint" style="margin-top:.75rem">Backups are kept in<br><span class="mono">{{ data_dir }}\backups</span></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Restore from a backup</h2></div>
+    <form class="card-body" method="post" action="/settings/restore" enctype="multipart/form-data"
+          onsubmit="return confirm('Restoring replaces ALL current data with the backup. A safety copy of the current books is taken first. Continue?')">
+      <div class="alert alert-warning">
+        Restoring replaces everything currently in the books. A copy of the present data is saved first,
+        and the restore finishes the next time {{ APP_NAME }} starts.
+      </div>
+      <div class="field"><label for="f">Backup file (.db)</label>
+        <input id="f" type="file" name="file" accept=".db" required></div>
+      <button class="btn btn-danger" type="submit">Restore this backup</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Automatic backups</h2>
+    <div>
+      {% if auto.on %}<span class="badge badge-paid">on</span>
+      {% else %}<span class="badge badge-void">off</span>{% endif %}
+    </div>
+  </div>
+  <div class="card-body">
+    <p class="muted small">
+      A backup you have to remember is a backup you do not have. Leave this on and
+      it happens by itself, as long as {{ APP_NAME }} is running at the time.
+    </p>
+
+    {% if auto.on %}
+    <div class="alert {{ 'alert-danger' if auto.last_error else 'alert-info' }}">
+      <strong>{{ auto.when }}.</strong>
+      {% if auto.last_run %}
+        Last run {{ auto.last_run }} — {{ auto.last_result }}.
+      {% else %}
+        Not run yet.
+      {% endif %}
+      {% if next_due %}<br>Next: {{ next_due|dt('%d %b %Y, %H:%M') }}.{% endif %}
+      {% if auto.last_error %}<br><strong>Problem:</strong> {{ auto.last_error }}{% endif %}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/settings/backup/schedule">
+      <div class="field-row">
+        <div class="field"><label for="sc">How often</label>
+          <select id="sc" name="schedule">
+            {% for key, label in schedules.items() %}
+            <option value="{{ key }}" {{ 'selected' if auto.schedule == key }}>{{ label }}</option>
+            {% endfor %}
+          </select></div>
+        <div class="field"><label for="hr">At</label>
+          <select id="hr" name="hour">
+            {% for h in range(24) %}
+            <option value="{{ h }}" {{ 'selected' if auto.hour == h }}>{{ '%02d:00'|format(h) }}</option>
+            {% endfor %}
+          </select>
+          <div class="hint">Pick a time the computer is usually on.</div></div>
+        <div class="field"><label for="wd">On</label>
+          <select id="wd" name="weekday">
+            {% for i, d in [(0,'Monday'),(1,'Tuesday'),(2,'Wednesday'),(3,'Thursday'),
+                            (4,'Friday'),(5,'Saturday'),(6,'Sunday')] %}
+            <option value="{{ i }}" {{ 'selected' if auto.weekday == i }}>{{ d }}</option>
+            {% endfor %}
+          </select>
+          <div class="hint">Only used for a weekly backup.</div></div>
+        <div class="field"><label for="kp">Keep the last</label>
+          <input id="kp" class="num" type="number" name="keep" min="1" max="365"
+                 value="{{ auto.keep }}" style="max-width:120px">
+          <div class="hint">Older automatic copies are deleted. Ones you took by
+            hand are never touched.</div></div>
+      </div>
+      <div class="field">
+        <label for="ct">Also put a copy in</label>
+        <input id="ct" name="copy_to" value="{{ auto.copy_to }}"
+               placeholder="D:\Backups  or  C:\Users\You\Google Drive\Nexora">
+        <div class="hint">
+          <strong>This is the one that matters.</strong> A backup on the same disk as
+          your books survives a mistake; it does not survive the disk failing, the
+          laptop being stolen, or a fire. Point this at a flash drive, a network
+          share, or a folder that syncs to Google Drive, Dropbox or OneDrive, and
+          leave the drive plugged in.
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" type="submit">Save the schedule</button>
+        <button class="btn" type="submit" formaction="/settings/backup/schedule/test">
+          Save and run one now
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Backups on this computer</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>File</th><th>Taken</th><th class="num">Size</th><th></th></tr></thead>
+      <tbody>
+        {% for name, size, when in backups %}
+        <tr>
+          <td class="mono small">{{ name }}</td>
+          <td>{{ when|dt('%d %b %Y, %H:%M') }}</td>
+          <td class="num">{{ (size / 1024) | round | int }} KB</td>
+          <td class="right"><a class="btn btn-sm" href="/settings/backup/download/{{ name }}">Download</a></td>
+        </tr>
+        {% else %}<tr><td colspan="4" class="empty">No backups yet. Take one now.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

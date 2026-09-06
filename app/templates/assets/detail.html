@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% from "_macros.html" import attachments_panel %}
+{% block title %}{{ asset.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ asset.name }}
+      {% if asset.status == 'DISPOSED' %}<span class="badge badge-void">disposed</span>
+      {% elif asset.status == 'WRITTEN_OFF' %}<span class="badge badge-void">written off</span>
+      {% elif asset.is_fully_depreciated and asset.method != 'NONE' %}<span class="badge badge-part">fully written down</span>
+      {% endif %}</h1>
+    <div class="muted small">{{ asset.number }}
+      {% if asset.category %} · {{ asset.category.name }}{% endif %}
+      {% if asset.registration_no %} · {{ asset.registration_no }}{% endif %}
+      {% if asset.serial_no %} · serial {{ asset.serial_no }}{% endif %}</div>
+  </div>
+  <div class="actions no-print">
+    {% if can(user, 'entry') %}<a class="btn" href="/assets/{{ asset.id }}/edit">Edit</a>{% endif %}
+    <a class="btn" href="/assets">Back to register</a>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Cost</div><div class="value">{{ asset.cost|money }}</div>
+    <div class="sub">Bought {{ asset.purchase_date|dt }}</div></div>
+  <div class="stat"><div class="label">Depreciation to date</div>
+    <div class="value">{{ asset.accumulated_depreciation|money }}</div>
+    <div class="sub">{{ asset.method_label }}{% if asset.method == 'REDUCING' %}, {{ asset.rate_pct }}% a year
+      {% elif asset.method == 'STRAIGHT' %}, {{ (asset.useful_life_months / 12)|round(1) }} years{% endif %}</div></div>
+  <div class="stat accent"><div class="label">Net book value</div>
+    <div class="value">{{ asset.net_book_value|money }}</div>
+    {% if asset.residual_value %}<div class="sub">Residual {{ asset.residual_value|money }}</div>{% endif %}</div>
+  <div class="stat"><div class="label">In service</div>
+    <div class="value" style="font-size:1.1rem">{{ asset.in_service_date|dt }}</div>
+    <div class="sub">{% if asset.last_depreciated_period %}Charged to {{ period_label(asset.last_depreciated_period) }}
+      {% else %}Not yet depreciated{% endif %}</div></div>
+</div>
+
+{% if asset.status == 'ACTIVE' and not asset.acquisition_entry_id %}
+<div class="alert alert-info no-print">
+  <b>This asset's cost is not in the ledger.</b>
+  If you have just bought it, post the purchase below. If it was already in the books before you
+  started using this register — an opening balance — leave it: the cost is already there.
+  {% if can(user, 'journal') %}
+  <form method="post" action="/assets/{{ asset.id }}/capitalise" class="inline-form" style="margin-top:.6rem">
+    <select name="funding_account_id" style="max-width:340px">
+      {% for a in funding %}
+      <option value="{{ a.id }}" {{ 'selected' if a.system_key == 'DEFAULT_BANK' }}>{{ a.code }} — {{ a.name }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn" type="submit">Post the purchase</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Details</h3></div>
+    <div class="card-body">
+      <dl class="detail">
+        <dt>Category</dt><dd>{{ asset.category.name if asset.category else '—' }}</dd>
+        <dt>Bought from</dt><dd>{{ asset.supplier.name if asset.supplier else '—' }}</dd>
+        <dt>Where it is kept</dt><dd>{{ asset.location or '—' }}</dd>
+        <dt>Who holds it</dt><dd>{{ asset.custodian or '—' }}</dd>
+        <dt>Date bought</dt><dd>{{ asset.purchase_date|dt }}</dd>
+        <dt>Put to work</dt><dd>{{ asset.in_service_date|dt }}</dd>
+        {% if acquisition %}
+        <dt>Purchase entry</dt><dd><a href="/journals/{{ acquisition.id }}">{{ acquisition.number }}</a></dd>
+        {% endif %}
+        {% if asset.disposal_date %}
+        <dt>{{ 'Written off' if asset.status == 'WRITTEN_OFF' else 'Disposed' }}</dt>
+        <dd>{{ asset.disposal_date|dt }}
+          {% if asset.disposal_proceeds %} for {{ asset.disposal_proceeds|money }}{% endif %}
+          {% if disposal %} · <a href="/journals/{{ disposal.id }}">{{ disposal.number }}</a>{% endif %}
+          {% if asset.disposal_note %}<div class="muted small">{{ asset.disposal_note }}</div>{% endif %}</dd>
+        {% endif %}
+      </dl>
+      {% if asset.description %}<p class="muted">{{ asset.description }}</p>{% endif %}
+      {% if asset.notes %}<p class="muted small">{{ asset.notes }}</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>What is left to charge</h3></div>
+    {% if forecast %}
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Month</th><th class="num">Charge</th><th class="num">Net book value after</th></tr></thead>
+        <tbody>
+          {% for period, amount, nbv in forecast %}
+          <tr><td>{{ period_label(period) }}</td>
+            <td class="num">{{ amount|money }}</td>
+            <td class="num muted">{{ nbv|money }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body muted small">
+      The next {{ forecast|length }} month{{ 's' if forecast|length != 1 }} — nothing is posted until you
+      run depreciation for the month.
+    </div>
+    {% else %}
+    <div class="empty">
+      {% if asset.status != 'ACTIVE' %}This asset has left the register.
+      {% elif asset.method == 'NONE' %}This category is not depreciated.
+      {% else %}Fully written down — there is nothing left to charge.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if asset.status == 'ACTIVE' and can(user, 'journal') %}
+<div class="card no-print">
+  <div class="card-head"><h3>Sell, scrap or write off</h3></div>
+  <form class="card-body" method="post" action="/assets/{{ asset.id }}/dispose"
+        onsubmit="return confirm('Take {{ asset.name }} off the register? This posts a journal entry.')">
+    <div class="field-row">
+      <div class="field"><label for="dd">Date</label>
+        <input id="dd" type="date" name="date" value="{{ today().isoformat() }}" required></div>
+      <div class="field"><label for="pr">Sold for</label>
+        <input id="pr" class="num" name="proceeds" placeholder="0.00">
+        <div class="hint">Leave empty if it was scrapped or stolen.</div></div>
+      <div class="field"><label for="bk">Money paid into</label>
+        <select id="bk" name="bank_id">
+          {% for b in banks %}
+          <option value="{{ b.id }}" {{ 'selected' if b.is_default }}>{{ b.name }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field" style="flex:1.5"><label for="nt">What happened</label>
+        <input id="nt" name="note" placeholder="e.g. Sold to Musa Motors, engine knocked"></div>
+    </div>
+    <div class="check"><input type="checkbox" id="wo" name="written_off" value="1">
+      <label for="wo">Written off — nothing was received (scrapped, stolen or destroyed)</label></div>
+    <div class="hint" style="margin-bottom:.6rem">
+      The entry takes out the cost of {{ asset.cost|money }} and the {{ asset.accumulated_depreciation|money }}
+      of depreciation charged so far. Anything above or below the net book value of
+      {{ asset.net_book_value|money }} goes to gain or loss on disposal.
+    </div>
+    <button class="btn btn-danger" type="submit">Take it off the register</button>
+  </form>
+</div>
+{% elif asset.status != 'ACTIVE' and can(user, 'void') %}
+<div class="card no-print">
+  <div class="card-body">
+    <form method="post" action="/assets/{{ asset.id }}/undo-disposal"
+          onsubmit="return confirm('Put {{ asset.name }} back on the register and reverse the disposal entry?')">
+      <button class="btn" type="submit">Undo the disposal</button>
+      <span class="muted small">Reverses the entry and puts the asset back. The original stays in the ledger.</span>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if history %}
+<div class="card">
+  <div class="card-head"><h3>Depreciation charged</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Run</th><th>Month</th><th class="num">Months</th>
+        <th class="num">Before</th><th class="num">Charge</th><th class="num">After</th></tr></thead>
+      <tbody>
+        {% for l in history %}
+        <tr>
+          <td class="mono"><a href="/assets/depreciation/{{ l.run.id }}">{{ l.run.number }}</a></td>
+          <td>{{ l.run.period_label }}</td>
+          <td class="num">{{ l.months_charged }}</td>
+          <td class="num muted">{{ l.nbv_before|money }}</td>
+          <td class="num">{{ l.amount|money }}</td>
+          <td class="num">{{ l.nbv_after|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><th colspan="4">Charged to date</th>
+        <th class="num">{{ asset.accumulated_depreciation|money }}</th><th></th></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{{ attachments_panel(user, 'ASSET', asset.id, files) }}
+{% endblock %}

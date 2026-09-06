@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Requisitions{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Requisitions</h1>
+    <div class="muted small">Ask for money, get it approved, and account for it afterwards.</div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="/requisitions/new">Raise a requisition</a>
+    {% if can(user, 'admin') or user.pays_requisitions %}
+    <a class="btn" href="/requisitions/outstanding">Who is holding money</a>
+    {% endif %}
+    <a class="btn" href="/requisitions?view={{ view }}&amp;format=csv">Export</a>
+  </div>
+</div>
+
+{% if sent_back %}
+<div class="alert alert-danger no-print">
+  <b>{{ sent_back|length }} of your requisition{{ 's have' if sent_back|length != 1 else ' has' }}
+  been sent back to you.</b>
+  <ul style="margin:.4rem 0 0 1.1rem">
+    {% for r in sent_back %}
+    <li><a href="/requisitions/{{ r.id }}">{{ r.number }}</a> — {{ r.purpose|truncate(60) }}
+      <div class="muted small">{{ r.rejected_by.display_name if r.rejected_by }}:
+        “{{ r.rejection_reason|truncate(140) }}”</div></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if waiting %}
+<div class="alert alert-info no-print">
+  <b>{{ waiting|length }} requisition{{ 's are' if waiting|length != 1 else ' is' }}
+  waiting for you</b> — {{ summary.waiting_value|money }} in total.
+</div>
+{% endif %}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat {{ 'accent' if summary.waiting_for_me }}">
+    <div class="label">Waiting for you</div>
+    <div class="value">{{ summary.waiting_for_me }}</div>
+    <div class="sub">{{ summary.waiting_value|money }}</div></div>
+  <div class="stat {{ 'danger' if summary.sent_back_to_me }}">
+    <div class="label">Sent back to you</div>
+    <div class="value">{{ summary.sent_back_to_me }}</div>
+    <div class="sub">{{ 'Fix and send again' if summary.sent_back_to_me else 'Nothing outstanding' }}</div></div>
+  <div class="stat {{ 'warn' if summary.my_unretired }}">
+    <div class="label">You have to retire</div>
+    <div class="value">{{ summary.my_unretired }}</div>
+    <div class="sub">{{ summary.my_unretired_value|money }} taken, not yet accounted for</div></div>
+  {% if summary.all_unretired %}
+  <div class="stat warn"><div class="label">Unretired across the company</div>
+    <div class="value">{{ summary.all_unretired }}</div>
+    <div class="sub">{{ summary.all_unretired_value|money }} out with staff</div></div>
+  {% endif %}
+</div>
+
+<form class="filters no-print" method="get">
+  <div class="field"><label for="vw">Show</label>
+    <select id="vw" name="view" onchange="this.form.submit()">
+      <option value="waiting" {{ 'selected' if view == 'waiting' }}>Waiting for me ({{ counts.waiting }})</option>
+      <option value="mine" {{ 'selected' if view == 'mine' }}>Mine ({{ counts.mine }})</option>
+      <option value="unretired" {{ 'selected' if view == 'unretired' }}>To be retired ({{ counts.unretired }})</option>
+      <option value="all" {{ 'selected' if view == 'all' }}>Everything I can see ({{ counts.all }})</option>
+    </select></div>
+  <div class="field"><label for="st">Status</label>
+    <select id="st" name="status" onchange="this.form.submit()">
+      <option value="">Any</option>
+      {% for value, label in statuses.items() %}
+      <option value="{{ value }}" {{ 'selected' if status == value }}>{{ label }}</option>
+      {% endfor %}
+    </select></div>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Number</th><th>Raised by</th><th>What for</th><th>Date</th>
+        <th class="num">Amount</th><th>Status</th><th>With</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="mono"><a href="/requisitions/{{ r.id }}">{{ r.number }}</a></td>
+          <td class="small">{{ r.raised_by.display_name }}
+            {% if r.department %}<div class="muted small">{{ r.department }}</div>{% endif %}</td>
+          <td>{{ r.purpose|truncate(70) }}
+            {% if r.status == 'REJECTED' and r.rejection_reason %}
+            <div class="muted small">Sent back: {{ r.rejection_reason|truncate(80) }}</div>
+            {% endif %}</td>
+          <td class="small">{{ r.date|dt }}</td>
+          <td class="num">{{ r.total|money }}
+            {% if r.status in ('PAID', 'RETIRED') and r.paid_amount != r.total %}
+            <div class="muted small">paid {{ r.paid_amount|money }}</div>{% endif %}</td>
+          <td><span class="badge {{ 'badge-paid' if r.status == 'RETIRED'
+                  else ('badge-void' if r.status in ('REJECTED', 'CANCELLED')
+                  else ('badge-part' if r.status == 'PAID'
+                  else ('badge-draft' if r.status == 'DRAFT' else 'badge-open'))) }}">
+            {{ r.status_label|lower }}</span></td>
+          <td class="small muted">{{ r.awaiting or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">
+          {% if view == 'waiting' %}Nothing is waiting for you.
+          {% elif view == 'mine' %}You have not raised any yet.
+            <a href="/requisitions/new">Raise one</a>.
+          {% elif view == 'unretired' %}Nothing is waiting to be retired.
+          {% else %}Nothing here yet.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="muted small">
+  A requisition goes to your named manager first{% if limit %}, then to a director if it is
+  over {{ limit|money }}{% endif %}, then to finance, who send the money to your own bank
+  account. Money paid out is charged to the accounts on the requisition straight away, so
+  retiring it with receipts is what corrects the figure to what you actually spent.
+</p>
+{% endblock %}

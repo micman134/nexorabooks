@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter %}
+{% block title %}Profit &amp; loss{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Profit &amp; loss</h1>
+    <div class="muted small">{{ company.name }} · {{ pl.start|dt }} to {{ pl.end|dt }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="?start={{ pl.start }}&end={{ pl.end }}&format=csv">Export CSV</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+{{ period_filter(preset, pl.start, pl.end) }}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Revenue</div><div class="value">{{ pl.revenue.total|money }}</div></div>
+  <div class="stat"><div class="label">Gross profit</div><div class="value">{{ pl.gross_profit|money }}</div>
+    <div class="sub">{{ (pl.gross_profit * 100 // pl.revenue.total) if pl.revenue.total else 0 }}% margin</div></div>
+  <div class="stat"><div class="label">Operating expenses</div><div class="value">{{ pl.expenses.total|money }}</div></div>
+  <div class="stat {{ 'danger' if pl.net_profit < 0 }}"><div class="label">Net profit</div>
+    <div class="value {{ 'neg' if pl.net_profit < 0 }}">{{ pl.net_profit|money }}</div>
+    <div class="sub">{{ (pl.net_profit * 100 // pl.revenue.total) if pl.revenue.total else 0 }}% of revenue</div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Account</th><th class="num">This period</th><th class="num">Previous period</th><th class="num">Change</th></tr></thead>
+      <tbody>
+        {% macro section(sec, sign=1) %}
+          <tr class="section"><td colspan="4">{{ sec.title }}</td></tr>
+          {% for acc, v, pv in sec.rows %}
+          <tr>
+            <td class="indent">{{ acc.code }} — {{ acc.name }}</td>
+            <td class="num">{{ v|money }}</td>
+            <td class="num muted">{{ pv|money }}</td>
+            <td class="num small {{ 'neg' if (v - pv) * sign < 0 }}">{{ (v - pv)|money }}</td>
+          </tr>
+          {% else %}
+          <tr><td class="indent muted">Nothing recorded</td><td class="num">—</td><td class="num">—</td><td></td></tr>
+          {% endfor %}
+          <tr class="total"><td>Total {{ sec.title|lower }}</td>
+            <td class="num">{{ sec.total|money }}</td>
+            <td class="num muted">{{ sec.total_prior|money }}</td>
+            <td class="num small">{{ (sec.total - sec.total_prior)|money }}</td></tr>
+        {% endmacro %}
+
+        {{ section(pl.revenue) }}
+        {{ section(pl.cogs, -1) }}
+        <tr class="grand"><td>Gross profit</td>
+          <td class="num">{{ pl.gross_profit|money }}</td>
+          <td class="num muted">{{ pl.gross_profit_prior|money }}</td>
+          <td class="num small">{{ (pl.gross_profit - pl.gross_profit_prior)|money }}</td></tr>
+
+        {{ section(pl.expenses, -1) }}
+        <tr class="total"><td>Operating profit</td>
+          <td class="num">{{ pl.operating_profit|money }}</td>
+          <td class="num muted">{{ pl.operating_profit_prior|money }}</td>
+          <td class="num small">{{ (pl.operating_profit - pl.operating_profit_prior)|money }}</td></tr>
+
+        {{ section(pl.other_income) }}
+        <tr class="total"><td>Profit before tax</td>
+          <td class="num">{{ pl.profit_before_tax|money }}</td>
+          <td class="num muted">{{ pl.profit_before_tax_prior|money }}</td>
+          <td class="num small">{{ (pl.profit_before_tax - pl.profit_before_tax_prior)|money }}</td></tr>
+
+        {{ section(pl.tax, -1) }}
+        <tr class="grand"><td>Net profit for the period</td>
+          <td class="num">{{ pl.net_profit|money }}</td>
+          <td class="num muted">{{ pl.net_profit_prior|money }}</td>
+          <td class="num small">{{ (pl.net_profit - pl.net_profit_prior)|money }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

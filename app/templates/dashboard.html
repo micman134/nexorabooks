@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Dashboard</h1>
+    <div class="muted small">Financial year {{ d.fy_start|dt }} — {{ d.fy_end|dt }} · as at {{ d.as_of|dt }}</div>
+  </div>
+  <div class="actions">
+    {% if can(user, 'entry') %}
+    <a class="btn btn-primary" href="/sales/invoices/new">New invoice</a>
+    <a class="btn" href="/purchases/bills/new">New bill</a>
+    <a class="btn" href="/receipts/new">Record a receipt</a>
+    <a class="btn" href="/purchases/expense/new">Record an expense</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if requisitions.sent_back_to_me %}
+<div class="alert alert-danger no-print">
+  <b>{{ requisitions.sent_back_to_me }} of your requisition{{ 's have' if requisitions.sent_back_to_me != 1 else ' has' }} been sent back.</b>
+  <a href="/requisitions?view=mine&amp;status=REJECTED">See why</a> — you can correct it and send it again.
+</div>
+{% endif %}
+
+{% if requisitions.waiting_for_me or requisitions.my_unretired %}
+<div class="alert alert-warning no-print">
+  {% if requisitions.waiting_for_me %}
+  <b>{{ requisitions.waiting_for_me }} requisition{{ 's are' if requisitions.waiting_for_me != 1 else ' is' }}
+  waiting for you</b> — {{ requisitions.waiting_value|money }}.
+  <a href="/requisitions">Deal with them</a>.
+  {% endif %}
+  {% if requisitions.my_unretired %}
+  You have {{ requisitions.my_unretired_value|money }} to retire with receipts.
+  <a href="/requisitions?view=unretired">Retire it</a>.
+  {% endif %}
+</div>
+{% endif %}
+
+{% if recurring_due or depreciation_due %}
+<div class="alert alert-info no-print">
+  <b>Waiting for you.</b>
+  {% if recurring_due %}
+  {{ recurring_due }} recurring document{{ 's are' if recurring_due != 1 else ' is' }} due —
+  <a href="/recurring">raise them</a>.
+  {% endif %}
+  {% if depreciation_due %}
+  Depreciation for {{ depreciation_label }} has not been run:
+  {{ depreciation_due|money }} to charge — <a href="/assets/depreciation">run it</a>.
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent">
+    <div class="label">Cash &amp; bank</div>
+    <div class="value {{ 'neg' if d.cash < 0 }}">{{ d.cash|money }}</div>
+    <div class="sub"><a href="/banking">View accounts</a></div>
+  </div>
+  <div class="stat {{ 'warn' if d.overdue_ar }}">
+    <div class="label">Owed to you</div>
+    <div class="value">{{ d.ar_total|money }}</div>
+    <div class="sub">{% if d.overdue_ar %}{{ d.overdue_ar|money }} overdue{% else %}Nothing overdue{% endif %}</div>
+  </div>
+  <div class="stat {{ 'warn' if d.overdue_ap }}">
+    <div class="label">You owe</div>
+    <div class="value">{{ d.ap_total|money }}</div>
+    <div class="sub">{% if d.overdue_ap %}{{ d.overdue_ap|money }} overdue{% else %}Nothing overdue{% endif %}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Profit this year</div>
+    <div class="value {{ 'neg' if d.profit_year < 0 }}">{{ d.profit_year|money }}</div>
+    <div class="sub">Revenue {{ d.revenue_year|money }} · margin {{ d.gross_margin }}%</div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head">
+      <h2>Revenue and costs — last 12 months</h2>
+    </div>
+    <div class="card-body">
+      {% set peak = (d.trend | map(attribute='revenue') | list + d.trend | map(attribute='expense') | list) | max %}
+      <div class="chart">
+        {% for m in d.trend %}
+        <div class="col" title="{{ m.label }} — revenue {{ m.revenue|money }}, costs {{ m.expense|money }}">
+          <div class="bars">
+            <div class="bar rev" style="height: {{ (m.revenue * 100 // peak) if peak else 0 }}%"></div>
+            <div class="bar exp" style="height: {{ (m.expense * 100 // peak) if peak else 0 }}%"></div>
+          </div>
+          <div class="lbl">{{ m.label }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="legend"><span><i style="background:var(--green)"></i>Revenue</span><span><i style="background:#c9d3da"></i>Costs</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Tax position</h2><div class="actions"><a class="btn btn-sm" href="/reports/vat">VAT return</a></div></div>
+    <div class="card-body">
+      <table class="data">
+        <tr><td>VAT owed to the NRS</td><td class="num strong">{{ d.vat_due|money }}</td></tr>
+        <tr><td>Withholding tax collected and due</td><td class="num strong">{{ d.wht_due|money }}</td></tr>
+        <tr><td>Revenue this month</td><td class="num">{{ d.revenue_month|money }}</td></tr>
+        <tr><td>Profit this month</td><td class="num {{ 'neg' if d.profit_month < 0 }}">{{ d.profit_month|money }}</td></tr>
+      </table>
+      <p class="hint" style="margin-top:.75rem">
+        VAT returns and withholding tax remittances are both due by the 21st of the following month.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Who owes you most</h2><div class="actions"><a class="btn btn-sm" href="/reports/aging">Ageing report</a></div></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Customer</th><th class="num">Overdue</th><th class="num">Total</th></tr></thead>
+        <tbody>
+          {% for r in d.top_debtors %}
+          <tr>
+            <td><a href="/contacts/{{ r.contact.id }}">{{ r.contact.name }}</a></td>
+            <td class="num">{{ (r.buckets[1:]|sum)|money }}</td>
+            <td class="num strong">{{ r.total|money }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="empty">No outstanding customer balances.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Who you owe most</h2><div class="actions"><a class="btn btn-sm" href="/reports/aging?kind=ap">Ageing report</a></div></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Supplier</th><th class="num">Overdue</th><th class="num">Total</th></tr></thead>
+        <tbody>
+          {% for r in d.top_creditors %}
+          <tr>
+            <td><a href="/contacts/{{ r.contact.id }}">{{ r.contact.name }}</a></td>
+            <td class="num">{{ (r.buckets[1:]|sum)|money }}</td>
+            <td class="num strong">{{ r.total|money }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="empty">No outstanding supplier balances.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if d.low_stock %}
+<div class="card">
+  <div class="card-head"><h2>Running low on stock</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Item</th><th class="num">On hand</th><th class="num">Reorder at</th><th class="num">Value</th></tr></thead>
+      <tbody>
+        {% for i in d.low_stock %}
+        <tr>
+          <td><a href="/inventory/{{ i.id }}">{{ i.name }}</a> <span class="muted small">{{ i.code }}</span></td>
+          <td class="num">{{ i.qty_on_hand|qty }} {{ i.unit }}</td>
+          <td class="num">{{ i.reorder_level|qty }}</td>
+          <td class="num">{{ i.stock_value|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid grid-3">
+  <div class="card">
+    <div class="card-head"><h3>Recent invoices</h3></div>
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          {% for i in recent_invoices %}
+          <tr>
+            <td><a href="/sales/invoices/{{ i.id }}">{{ i.number }}</a><div class="muted small">{{ i.contact.name if i.contact }}</div></td>
+            <td class="num">{{ i.total|money }}<div><span class="badge {{ i.status|status_class }}">{{ i.status.replace('_',' ')|lower }}</span></div></td>
+          </tr>
+          {% else %}<tr><td class="empty">Nothing yet.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>Recent bills</h3></div>
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          {% for b in recent_bills %}
+          <tr>
+            <td><a href="/purchases/bills/{{ b.id }}">{{ b.number }}</a><div class="muted small">{{ b.contact.name if b.contact }}</div></td>
+            <td class="num">{{ b.total|money }}<div><span class="badge {{ b.status|status_class }}">{{ b.status.replace('_',' ')|lower }}</span></div></td>
+          </tr>
+          {% else %}<tr><td class="empty">Nothing yet.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>Recent money movements</h3></div>
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          {% for p in recent_payments %}
+          <tr>
+            <td><a href="/{{ 'receipts' if p.kind == 'RECEIPT' else 'payments' }}/{{ p.id }}">{{ p.number }}</a>
+              <div class="muted small">{{ p.contact.name if p.contact }}</div></td>
+            <td class="num">{{ p.amount|money }}<div class="muted small">{{ 'received' if p.kind == 'RECEIPT' else 'paid' }}</div></td>
+          </tr>
+          {% else %}<tr><td class="empty">Nothing yet.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

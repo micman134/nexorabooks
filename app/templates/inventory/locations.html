@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Where stock is kept{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Where stock is kept</h1>
+    <div class="muted small">Yards, depots, shops, vans. Stock is counted in each; its value is
+      the same wherever it sits.</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/inventory/transfer">Move stock</a>
+    <a class="btn" href="/inventory">Items &amp; stock</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Code</th><th>Name</th><th>Who runs it</th>
+        <th class="num">Items held</th><th class="num">Value</th><th></th><th></th></tr></thead>
+      <tbody>
+        {% for p in places %}
+        <tr>
+          <td class="mono">{{ p.code }}</td>
+          <td><b>{{ p.name }}</b>
+            {% if p.is_default %}<span class="badge badge-open">default</span>{% endif %}
+            {% if not p.is_active %}<span class="badge badge-void">closed</span>{% endif %}
+            {% if p.address %}<div class="muted small">{{ p.address }}</div>{% endif %}</td>
+          <td class="small">{{ p.manager or '—' }}
+            {% if p.phone %}<div class="muted small">{{ p.phone }}</div>{% endif %}</td>
+          <td class="num">{{ counts.get(p.id, 0) }}</td>
+          <td class="num">{{ values.get(p.id, 0)|money }}</td>
+          <td class="right">
+            {% if can(user, 'journal') %}
+            <button class="btn btn-sm" type="button" onclick="editPlace({{ p.id }})">Edit</button>
+            {% endif %}
+          </td>
+          <td class="right"><a class="btn btn-sm" href="/inventory/transfer">Move stock</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">No places set up yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if can(user, 'journal') %}
+<div class="card">
+  <div class="card-head"><h3 id="form-title">Add a place</h3></div>
+  <form class="card-body" method="post" action="/inventory/locations/save">
+    <input type="hidden" name="id" id="place-id" value="">
+    <div class="field-row">
+      <div class="field"><label for="cd">Code</label>
+        <input id="cd" name="code" placeholder="e.g. IKJ" maxlength="20"></div>
+      <div class="field" style="flex:2"><label for="nm">Name *</label>
+        <input id="nm" name="name" required placeholder="e.g. Ikeja yard"></div>
+      <div class="field"><label for="mg">Who runs it</label>
+        <input id="mg" name="manager" placeholder="Storekeeper's name"></div>
+      <div class="field"><label for="ph">Phone</label><input id="ph" name="phone"></div>
+    </div>
+    <div class="field"><label for="ad">Address</label>
+      <textarea id="ad" name="address" rows="2"></textarea></div>
+    <div class="field-row">
+      <div class="check"><input type="checkbox" id="df" name="is_default" value="1">
+        <label for="df">Use this one unless told otherwise</label></div>
+      <div class="check"><input type="checkbox" id="ia" name="is_active" value="1" checked>
+        <label for="ia">Open</label></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <button class="btn" type="button" onclick="resetForm()">Clear</button>
+    </div>
+  </form>
+</div>
+
+<script>
+var PLACES = {
+  {% for p in places %}
+  {{ p.id }}: {code: {{ p.code|tojson }}, name: {{ p.name|tojson }},
+               manager: {{ p.manager|tojson }}, phone: {{ p.phone|tojson }},
+               address: {{ p.address|tojson }},
+               is_default: {{ 'true' if p.is_default else 'false' }},
+               is_active: {{ 'true' if p.is_active else 'false' }}}{{ ',' if not loop.last }}
+  {% endfor %}
+};
+function editPlace(id) {
+  var p = PLACES[id];
+  document.getElementById('place-id').value = id;
+  document.getElementById('form-title').textContent = 'Edit ' + p.name;
+  document.getElementById('cd').value = p.code;
+  document.getElementById('nm').value = p.name;
+  document.getElementById('mg').value = p.manager;
+  document.getElementById('ph').value = p.phone;
+  document.getElementById('ad').value = p.address;
+  document.getElementById('df').checked = p.is_default;
+  document.getElementById('ia').checked = p.is_active;
+  document.getElementById('nm').scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+function resetForm() {
+  document.getElementById('place-id').value = '';
+  document.getElementById('form-title').textContent = 'Add a place';
+  document.querySelector('form[action="/inventory/locations/save"]').reset();
+}
+</script>
+{% endif %}
+{% endblock %}

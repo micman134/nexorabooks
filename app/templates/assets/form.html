@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}{{ 'New asset' if is_new else asset.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ 'New asset' if is_new else 'Edit ' ~ asset.name }}</h1>
+  {% if not is_new %}<div class="actions"><a class="btn" href="/assets/{{ asset.id }}">Cancel</a></div>{% endif %}
+</div>
+
+<form method="post" action="/assets/save" style="max-width:960px">
+  {% if not is_new %}<input type="hidden" name="id" value="{{ asset.id }}">{% endif %}
+
+  <fieldset>
+    <legend>What it is</legend>
+    <div class="field-row">
+      <div class="field" style="flex:2"><label for="nm">Name *</label>
+        <input id="nm" name="name" value="{{ asset.name }}" required autofocus
+               placeholder="e.g. Toyota Hiace bus, 100 KVA Mikano generator"></div>
+      <div class="field"><label for="cat">Category *</label>
+        <select id="cat" name="category_id" onchange="categoryChanged()">
+          {% for c in categories %}
+          <option value="{{ c.id }}" {{ 'selected' if asset.category_id == c.id }}
+                  data-method="{{ c.method }}" data-life="{{ c.useful_life_months }}"
+                  data-rate="{{ c.rate_pct }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="hint">The category decides which accounts it uses.</div></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="sn">Serial number</label>
+        <input id="sn" name="serial_no" value="{{ asset.serial_no }}"></div>
+      <div class="field"><label for="rn">Registration / plate number</label>
+        <input id="rn" name="registration_no" value="{{ asset.registration_no }}"
+               placeholder="For vehicles"></div>
+      <div class="field"><label for="lc">Where it is kept</label>
+        <input id="lc" name="location" value="{{ asset.location }}"
+               placeholder="e.g. Ikeja warehouse"></div>
+      <div class="field"><label for="cu">Who holds it</label>
+        <input id="cu" name="custodian" value="{{ asset.custodian }}"
+               placeholder="Driver, storekeeper, department"></div>
+    </div>
+    <div class="field"><label for="ds">Description</label>
+      <textarea id="ds" name="description" rows="2">{{ asset.description }}</textarea></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>What it cost</legend>
+    <div class="field-row">
+      <div class="field"><label for="cs">Cost *</label>
+        <input id="cs" class="num" name="cost" value="{{ asset.cost|naira if asset.cost else '' }}"
+               placeholder="0.00" required>
+        <div class="hint">Everything spent getting it working — price, delivery, installation.</div></div>
+      <div class="field"><label for="rv">Residual value</label>
+        <input id="rv" class="num" name="residual_value"
+               value="{{ asset.residual_value|naira if asset.residual_value else '' }}" placeholder="0.00">
+        <div class="hint">What you expect to sell it for at the end. Leave at zero if you don't know.</div></div>
+      <div class="field"><label for="sp">Bought from</label>
+        <select id="sp" name="supplier_id">
+          <option value="">—</option>
+          {% for s in suppliers %}
+          <option value="{{ s.id }}" {{ 'selected' if asset.supplier_id == s.id }}>{{ s.name }}</option>
+          {% endfor %}
+        </select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="pd">Date bought *</label>
+        <input id="pd" type="date" name="purchase_date"
+               value="{{ asset.purchase_date.isoformat() if asset.purchase_date else '' }}" required></div>
+      <div class="field"><label for="isd">Date put to work *</label>
+        <input id="isd" type="date" name="in_service_date"
+               value="{{ asset.in_service_date.isoformat() if asset.in_service_date else '' }}" required>
+        <div class="hint">Depreciation starts this month, not the month it was bought.</div></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>How it depreciates</legend>
+    <div class="field-row">
+      <div class="field" style="flex:2"><label for="mt">Method</label>
+        <select id="mt" name="method" onchange="methodChanged()">
+          {% for value, label in methods %}
+          <option value="{{ value }}" {{ 'selected' if asset.method == value }}>{{ label }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field" id="life-field"><label for="ly">Useful life</label>
+        <div style="display:flex;gap:.4rem">
+          <input id="ly" class="num" name="useful_life_years" style="flex:1"
+                 value="{{ (asset.useful_life_months // 12) if asset.useful_life_months else '' }}"
+                 placeholder="years">
+          <input class="num" name="useful_life_months_extra" style="flex:1"
+                 value="{{ (asset.useful_life_months % 12) or '' }}" placeholder="months">
+        </div>
+        <div class="hint">Years, plus any odd months.</div></div>
+      <div class="field" id="rate-field"><label for="rt">Rate a year (%)</label>
+        <input id="rt" class="num" name="rate_pct" value="{{ asset.rate_pct }}">
+        <div class="hint">Reducing balance only.</div></div>
+    </div>
+    <div class="hint">
+      This is depreciation for your accounts. Capital allowances for company income tax are
+      worked out separately at year end — your accountant does that from the register.
+    </div>
+  </fieldset>
+
+  {% if is_new %}
+  <fieldset>
+    <legend>Post the purchase</legend>
+    <div class="check"><input type="checkbox" id="cap" name="capitalise" value="1" checked
+                              onchange="document.getElementById('fund-field').style.display = this.checked ? '' : 'none'">
+      <label for="cap">Post this purchase to the ledger now</label></div>
+    <div class="hint">Leave this ticked for something you have just bought. Untick it for an asset
+      you already own and are only recording — its cost is already in the books.</div>
+    <div class="field" id="fund-field" style="max-width:420px"><label for="fa">Paid from</label>
+      <select id="fa" name="funding_account_id">
+        {% for a in funding %}
+        <option value="{{ a.id }}" {{ 'selected' if a.system_key == 'DEFAULT_BANK' }}>{{ a.code }} — {{ a.name }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">A bank account if you paid cash, or Accounts Payable if it was bought on credit.</div></div>
+  </fieldset>
+  {% endif %}
+
+  <fieldset>
+    <legend>Notes</legend>
+    <div class="field"><textarea name="notes" rows="3">{{ asset.notes }}</textarea></div>
+  </fieldset>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">Save asset</button>
+    <a class="btn" href="{{ '/assets' if is_new else '/assets/' ~ asset.id }}">Cancel</a>
+  </div>
+</form>
+
+<script>
+function methodChanged() {
+  var m = document.getElementById('mt').value;
+  document.getElementById('life-field').style.display = (m === 'STRAIGHT') ? '' : 'none';
+  document.getElementById('rate-field').style.display = (m === 'REDUCING') ? '' : 'none';
+}
+function categoryChanged() {
+  {% if is_new %}
+  var opt = document.getElementById('cat').selectedOptions[0];
+  if (!opt) return;
+  document.getElementById('mt').value = opt.dataset.method;
+  var months = parseInt(opt.dataset.life || '0', 10);
+  document.querySelector('[name=useful_life_years]').value = months ? Math.floor(months / 12) : '';
+  document.querySelector('[name=useful_life_months_extra]').value = (months % 12) || '';
+  document.getElementById('rt').value = opt.dataset.rate;
+  methodChanged();
+  {% endif %}
+}
+methodChanged();
+</script>
+{% endblock %}

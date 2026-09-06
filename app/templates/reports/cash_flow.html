@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter %}
+{% block title %}Cash flow{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Cash flow statement</h1>
+    <div class="muted small">{{ company.name }} · {{ cf.start|dt }} to {{ cf.end|dt }}</div>
+  </div>
+  <div class="actions no-print"><button class="btn btn-primary" onclick="window.print()">Print</button></div>
+</div>
+
+{{ period_filter(preset, cf.start, cf.end) }}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Cash at the start</div><div class="value">{{ cf.opening_cash|money }}</div></div>
+  <div class="stat {{ 'accent' if cf.net_movement >= 0 else 'danger' }}">
+    <div class="label">Net movement</div>
+    <div class="value {{ 'neg' if cf.net_movement < 0 }}">{{ cf.net_movement|money }}</div></div>
+  <div class="stat accent"><div class="label">Cash at the end</div>
+    <div class="value {{ 'neg' if cf.closing_cash < 0 }}">{{ cf.closing_cash|money }}</div></div>
+  <div class="stat"><div class="label">From operations</div>
+    <div class="value {{ 'neg' if cf.operating_total < 0 }}">{{ cf.operating_total|money }}</div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <tbody>
+        <tr><td>Cash and bank at {{ cf.start|dt }}</td><td class="num strong">{{ cf.opening_cash|money }}</td></tr>
+
+        <tr class="section"><td colspan="2">Operating activities</td></tr>
+        {% for label, amount in cf.operating %}
+        <tr><td class="indent">{{ label }}</td><td class="num {{ 'neg' if amount < 0 }}">{{ amount|money }}</td></tr>
+        {% else %}<tr><td class="indent muted">No operating cash movements</td><td class="num">—</td></tr>{% endfor %}
+        <tr class="total"><td>Net cash from operating activities</td>
+          <td class="num {{ 'neg' if cf.operating_total < 0 }}">{{ cf.operating_total|money }}</td></tr>
+
+        <tr class="section"><td colspan="2">Investing activities</td></tr>
+        {% for label, amount in cf.investing %}
+        <tr><td class="indent">{{ label }}</td><td class="num {{ 'neg' if amount < 0 }}">{{ amount|money }}</td></tr>
+        {% else %}<tr><td class="indent muted">No investing cash movements</td><td class="num">—</td></tr>{% endfor %}
+        <tr class="total"><td>Net cash from investing activities</td>
+          <td class="num {{ 'neg' if cf.investing_total < 0 }}">{{ cf.investing_total|money }}</td></tr>
+
+        <tr class="section"><td colspan="2">Financing activities</td></tr>
+        {% for label, amount in cf.financing %}
+        <tr><td class="indent">{{ label }}</td><td class="num {{ 'neg' if amount < 0 }}">{{ amount|money }}</td></tr>
+        {% else %}<tr><td class="indent muted">No financing cash movements</td><td class="num">—</td></tr>{% endfor %}
+        <tr class="total"><td>Net cash from financing activities</td>
+          <td class="num {{ 'neg' if cf.financing_total < 0 }}">{{ cf.financing_total|money }}</td></tr>
+
+        <tr class="total"><td>Net increase / (decrease) in cash</td>
+          <td class="num {{ 'neg' if cf.net_movement < 0 }}">{{ cf.net_movement|money }}</td></tr>
+        {% if cf.difference %}
+        <tr><td class="indent neg">Unclassified difference</td><td class="num neg">{{ cf.difference|money }}</td></tr>
+        {% endif %}
+        <tr class="grand"><td>Cash and bank at {{ cf.end|dt }}</td>
+          <td class="num">{{ cf.closing_cash|money }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="hint">
+  Prepared on the direct method: every naira that moved through a bank or cash account is traced to what
+  it was spent on or received for, so this statement always ties back exactly to the change in your balances.
+</p>
+{% endblock %}

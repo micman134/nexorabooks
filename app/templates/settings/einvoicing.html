@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Electronic invoicing{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Electronic invoicing</h1></div>
+
+<div class="alert alert-warning">
+  <p><strong>Read this before you switch anything on.</strong></p>
+  <p>Nexora Books can build the document the Nigeria Revenue Service asks for, check it,
+    and keep a queue of what has not got through. What it cannot yet do is file on your
+    behalf, because access to the Service's platform comes with credentials and a
+    sandbox that this software has not been tested against.</p>
+  <p style="margin-bottom:0">So <strong>rehearsal</strong> is the mode that works today. It tells you exactly what
+    would be refused, using your own invoices, and marks everything it produces as a
+    rehearsal. Do not present it to anybody as having filed.
+    <a href="/settings/einvoicing#live">What live filing needs</a>.</p>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Readiness                                                          -->
+<!-- ------------------------------------------------------------------ -->
+
+<div class="card">
+  <div class="card-head">
+    <h2>Would your books pass today?</h2>
+  </div>
+  <div class="card-body">
+    {% if report.ready %}
+      <p class="ok"><strong>Nothing is missing.</strong>
+        Checked your company details, {{ report.customers_checked }}
+        customer{{ '' if report.customers_checked == 1 else 's' }} and the last
+        {{ report.invoices_checked }} posted invoice{{ '' if report.invoices_checked == 1 else 's' }}.</p>
+    {% else %}
+      <p><strong>{{ report.blocking | length }}</strong>
+        thing{{ '' if report.blocking | length == 1 else 's' }} would stop a document being
+        accepted. Each one is a record to go and complete — none of it needs new software.</p>
+    {% endif %}
+
+    {% if report.blocking %}
+    <div class="table-wrap" style="margin-top:1rem">
+      <table class="data">
+        <thead><tr><th style="width:30%">Record</th><th>What is missing</th><th style="width:110px"></th></tr></thead>
+        <tbody>
+          {% for p in report.blocking %}
+          <tr>
+            <td>{{ p.where }}</td>
+            <td>{{ p.what }}</td>
+            <td>{% if p.fix %}<a class="btn btn-sm" href="{{ p.fix }}">Fix</a>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if report.advisory %}
+    <details style="margin-top:1rem">
+      <summary>{{ report.advisory | length }} thing{{ '' if report.advisory | length == 1 else 's' }}
+        worth filling in, but not a blocker</summary>
+      <ul class="plain" style="margin-top:.6rem">
+        {% for p in report.advisory %}
+        <li><strong>{{ p.where }}</strong> — {{ p.what }}
+          {% if p.fix %}<a href="{{ p.fix }}">Fix</a>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+
+    <p class="hint" style="margin-top:1rem">
+      The mandate needs about fifty-five fields across eight categories, and most of them
+      are not typed on the invoice — they are your customers' Tax IDs, your own address,
+      the tax code on each line. Businesses under ₦1&nbsp;billion turnover have until
+      <strong>1 July 2027</strong>. Tidying these records is work that pays off whichever
+      software you eventually file through.
+    </p>
+  </div>
+</div>
+
+<form method="post" action="/settings/einvoicing">
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Mode                                                               -->
+<!-- ------------------------------------------------------------------ -->
+
+<div class="card">
+  <div class="card-head"><h2>How this company files</h2></div>
+  <div class="card-body">
+    {% for value, label in modes %}
+    <label class="radio-row">
+      <input type="radio" name="mode" value="{{ value }}" {{ 'checked' if settings.mode == value }}>
+      <span>{{ label }}</span>
+    </label>
+    {% endfor %}
+
+    <hr>
+
+    <label class="check-row">
+      <input type="checkbox" name="auto_submit" value="1" {{ 'checked' if settings.auto_submit }}>
+      <span>Send an invoice for clearance as soon as it is posted.
+        <span class="muted small">The reference number has to be obtained before the
+        invoice reaches the customer, so for most businesses this is the right way round.</span></span>
+    </label>
+
+    <label class="check-row">
+      <input type="checkbox" name="block_uncleared" value="1" {{ 'checked' if settings.block_uncleared }}>
+      <span>Refuse to email or print an invoice that has not been cleared.
+        <span class="muted small">Strictly correct once you are in scope. Leave it off
+        until you are actually filing, or you will lock yourself out of your own sales.</span></span>
+    </label>
+  </div>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Live credentials                                                   -->
+<!-- ------------------------------------------------------------------ -->
+
+<div class="card" id="live">
+  <div class="card-head"><h2>Live filing</h2></div>
+  <div class="card-body">
+    <p class="hint">
+      Fill these in when you have credentials — either directly from the Nigeria Revenue
+      Service, or from an accredited Access Point Provider. Nothing here is specific to
+      one provider, so a business that signs on Monday can be filing on Monday.
+    </p>
+
+    <div class="grid grid-2">
+      <div class="field">
+        <label>Who you file through</label>
+        <input name="provider_name" value="{{ settings.provider_name }}"
+               placeholder="e.g. the Revenue Service, or your provider's name">
+      </div>
+      <div class="field">
+        <label>Your business identifier with them</label>
+        <input name="business_id" value="{{ settings.business_id }}">
+      </div>
+      <div class="field">
+        <label>Where documents are sent</label>
+        <input name="submit_url" value="{{ settings.submit_url }}"
+               placeholder="https://…">
+      </div>
+      <div class="field">
+        <label>Where tokens are issued <span class="muted">(leave blank if they gave you a key)</span></label>
+        <input name="token_url" value="{{ settings.token_url }}" placeholder="https://…">
+      </div>
+      <div class="field">
+        <label>Client ID</label>
+        <input name="client_id" value="{{ settings.client_id }}" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Client secret</label>
+        <input name="client_secret" type="password" autocomplete="new-password"
+               placeholder="{{ '•••••••• (unchanged)' if settings.client_secret else '' }}">
+        <span class="hint">Stored on this computer in a file only you can read.
+          Leave blank to keep the one already saved.</span>
+      </div>
+      <div class="field">
+        <label>Scope <span class="muted">(if they asked for one)</span></label>
+        <input name="scope" value="{{ settings.scope }}">
+      </div>
+    </div>
+
+    <details style="margin-top:.8rem">
+      <summary>Where the reference number appears in their reply</summary>
+      <p class="hint">Providers disagree about field names. If yours returns
+        <code>{"result": {"invoiceReferenceNumber": "…"}}</code> then put
+        <code>result.invoiceReferenceNumber</code> here. The defaults suit the commonest shape.</p>
+      <div class="grid grid-3">
+        <div class="field"><label>Reference number</label>
+          <input name="irn_path" value="{{ settings.irn_path }}"></div>
+        <div class="field"><label>Cryptographic stamp</label>
+          <input name="csid_path" value="{{ settings.csid_path }}"></div>
+        <div class="field"><label>QR payload</label>
+          <input name="qr_path" value="{{ settings.qr_path }}"></div>
+      </div>
+      <div class="field">
+        <label>Customisation identifier</label>
+        <input name="customization_id" value="{{ settings.customization_id }}">
+        <span class="hint">The profile the document claims to follow. Change it when the
+          Revenue Service publishes the Nigerian identifier, without waiting for us.</span>
+      </div>
+    </details>
+  </div>
+  <div class="card-foot">
+    <button class="btn btn-primary" type="submit">Save</button>
+  </div>
+</div>
+</form>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Queue                                                              -->
+<!-- ------------------------------------------------------------------ -->
+
+<div class="card">
+  <div class="card-head"><h2>Waiting to go</h2></div>
+  <div class="card-body">
+    {% if outbox %}
+    <p>These did not get through. Nothing has been lost — they keep trying on their own,
+      and you can push them now.</p>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Invoice</th><th>Tries</th><th>What happened</th><th>Next try</th></tr></thead>
+        <tbody>
+          {% for row in outbox %}
+          <tr>
+            <td>{% if row.invoice %}<a href="/sales/invoices/{{ row.invoice.id }}">{{ row.invoice.number }}</a>{% endif %}</td>
+            <td class="num">{{ row.attempts }}</td>
+            <td class="small">{{ row.last_error }}</td>
+            <td class="small">{{ row.retry_after.strftime('%d %b %H:%M') if row.retry_after else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">Nothing is waiting.</p>
+    {% endif %}
+  </div>
+  <div class="card-foot">
+    <form method="post" action="/settings/einvoicing/send-queue">
+      <button class="btn" type="submit">Try the queue now</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

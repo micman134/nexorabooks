@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, attachments_panel %}
+{% block title %}{{ contact.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ contact.name }}</h1>
+    <div class="muted small">{{ contact.code }}
+      {% if contact.is_customer %}· customer{% endif %}{% if contact.is_vendor %} · supplier{% endif %}
+      {% if not contact.is_active %}· <span class="badge badge-void">archived</span>{% endif %}</div>
+  </div>
+  <div class="actions">
+    {% if can(user, 'entry') %}
+      {% if contact.is_customer %}<a class="btn btn-primary" href="/sales/invoices/new?contact={{ contact.id }}">New invoice</a>
+      <a class="btn" href="/receipts/new?contact={{ contact.id }}">Record a receipt</a>{% endif %}
+      {% if contact.is_vendor %}<a class="btn" href="/purchases/bills/new?contact={{ contact.id }}">New bill</a>
+      <a class="btn" href="/payments/new?contact={{ contact.id }}">Record a payment</a>{% endif %}
+    {% endif %}
+    <a class="btn" href="/contacts/{{ contact.id }}/statement">Statement</a>
+    {% if can(user, 'entry') %}<a class="btn" href="/contacts/{{ contact.id }}/edit">Edit</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  {% if contact.is_customer %}
+  <div class="stat accent"><div class="label">They owe you</div><div class="value">{{ outstanding_ar|money }}</div>
+    {% if contact.credit_limit %}<div class="sub">Credit limit {{ contact.credit_limit|money }}</div>{% endif %}</div>
+  {% endif %}
+  {% if contact.is_vendor %}
+  <div class="stat"><div class="label">You owe them</div><div class="value">{{ outstanding_ap|money }}</div></div>
+  {% endif %}
+  <div class="stat"><div class="label">Tax ID</div><div class="value" style="font-size:1rem">{{ contact.tin or 'Not on record' }}</div>
+    <div class="sub">{{ 'Standard WHT rates apply' if contact.tin else 'WHT charged at double rate' }}</div></div>
+  <div class="stat"><div class="label">Payment terms</div><div class="value" style="font-size:1rem">{{ contact.payment_terms_days }} days</div>
+    <div class="sub">{{ 'Small company — WHT exemption may apply' if contact.is_small_company else '' }}</div></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Contact details</h3></div>
+    <div class="card-body">
+      <table class="data">
+        <tr><th>Contact person</th><td>{{ contact.contact_person or '—' }}</td></tr>
+        <tr><th>Phone</th><td>{{ contact.phone or '—' }}</td></tr>
+        <tr><th>Email</th><td>{{ contact.email or '—' }}</td></tr>
+        <tr><th>Address</th><td>{{ contact.address or '—' }}{% if contact.city %}<br>{{ contact.city }}{{ ', ' ~ contact.state if contact.state }}{% endif %}</td></tr>
+        <tr><th>RC number</th><td>{{ contact.rc_number or '—' }}</td></tr>
+        <tr><th>Bank</th><td>{{ contact.bank_name or '—' }} {{ contact.bank_account_no }}</td></tr>
+        <tr><th>Default WHT</th><td>{{ contact.default_wht_code.name ~ ' (' ~ contact.default_wht_code.rate ~ '%)' if contact.default_wht_code else 'None' }}</td></tr>
+      </table>
+      {% if contact.notes %}<p class="hint" style="margin-top:.75rem">{{ contact.notes }}</p>{% endif %}
+      {% if can(user, 'entry') %}
+      <form method="post" action="/contacts/{{ contact.id }}/archive" style="margin-top:1rem">
+        <button class="btn btn-sm" type="submit">{{ 'Restore' if not contact.is_active else 'Archive' }}</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Money movements</h3></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Date</th><th>Number</th><th>Type</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+          {% for p in payments %}
+          <tr>
+            <td class="nowrap">{{ p.date|dt }}</td>
+            <td><a href="/{{ 'receipts' if p.kind == 'RECEIPT' else 'payments' }}/{{ p.id }}">{{ p.number }}</a></td>
+            <td>{{ 'Received' if p.kind == 'RECEIPT' else 'Paid' }}{% if p.status == 'VOID' %} <span class="badge badge-void">void</span>{% endif %}</td>
+            <td class="num">{{ p.amount|money }}{% if p.wht_amount %}<div class="muted small">WHT {{ p.wht_amount|money }}</div>{% endif %}</td>
+          </tr>
+          {% else %}<tr><td colspan="4" class="empty">Nothing recorded yet.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if contact.is_customer %}
+<div class="card">
+  <div class="card-head"><h3>Sales documents</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Date</th><th>Number</th><th>Reference</th><th>Status</th>
+        <th class="num">Total</th><th class="num">Outstanding</th></tr></thead>
+      <tbody>
+        {% for i in invoices %}
+        <tr>
+          <td class="nowrap">{{ i.date|dt }}</td>
+          <td><a href="/sales/{{ 'invoices' if i.doc_type == 'INVOICE' else ('quotes' if i.doc_type == 'QUOTE' else 'credit-notes') }}/{{ i.id }}">{{ i.number }}</a></td>
+          <td>{{ i.reference or i.po_number or '—' }}</td>
+          <td>{{ status_badge(i.status) }}</td>
+          <td class="num">{{ i.total|money }}</td>
+          <td class="num">{{ i.balance_due|money if i.status in ('POSTED','PART_PAID') else '—' }}</td>
+        </tr>
+        {% else %}<tr><td colspan="6" class="empty">No sales documents yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if contact.is_vendor %}
+<div class="card">
+  <div class="card-head"><h3>Purchase documents</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Date</th><th>Number</th><th>Their invoice no.</th><th>Status</th>
+        <th class="num">Total</th><th class="num">Outstanding</th></tr></thead>
+      <tbody>
+        {% for b in bills %}
+        <tr>
+          <td class="nowrap">{{ b.date|dt }}</td>
+          <td><a href="/purchases/{{ 'bills' if b.doc_type == 'BILL' else ('orders' if b.doc_type == 'PO' else 'debit-notes') }}/{{ b.id }}">{{ b.number }}</a></td>
+          <td>{{ b.vendor_invoice_no or '—' }}</td>
+          <td>{{ status_badge(b.status) }}</td>
+          <td class="num">{{ b.total|money }}</td>
+          <td class="num">{{ b.balance_due|money if b.status in ('POSTED','PART_PAID') else '—' }}</td>
+        </tr>
+        {% else %}<tr><td colspan="6" class="empty">No purchase documents yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{{ attachments_panel(user, 'CONTACT', contact.id, files) }}
+
+{% endblock %}

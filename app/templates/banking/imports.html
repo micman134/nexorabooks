@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Statements imported{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Statements imported</h1>
+    <div class="muted small">Every bank statement brought into these books.</div>
+  </div>
+  <div class="actions no-print"><a class="btn" href="/banking">Bank accounts</a></div>
+</div>
+
+<div class="card">
+  {% if batches %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Account</th><th>File</th><th>Period</th>
+        <th class="num">In</th><th class="num">Out</th><th class="num">Lines</th>
+        <th>Progress</th><th></th></tr></thead>
+      <tbody>
+        {% for b in batches %}
+        <tr>
+          <td>{{ b.bank_account.name if b.bank_account else '—' }}</td>
+          <td>{{ b.filename or 'statement' }}
+            <div class="muted small">{{ b.imported_at|dt('%d %b %Y, %H:%M') }}{% if b.imported_by %} · {{ b.imported_by.display_name }}{% endif %}</div></td>
+          <td class="small nowrap">{{ b.first_date|dt }} – {{ b.last_date|dt }}</td>
+          <td class="num pos">{{ b.total_in|money }}</td>
+          <td class="num neg">{{ b.total_out|money }}</td>
+          <td class="num">{{ b.line_count }}</td>
+          <td>
+            {% if b.is_done %}<span class="badge badge-paid">all done</span>
+            {% else %}<span class="badge badge-part">{{ b.settled }} of {{ b.line_count }}</span>{% endif %}
+          </td>
+          <td class="right"><a class="btn btn-sm" href="/banking/import/{{ b.id }}">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <p>No bank statements have been imported yet.</p>
+    <p class="muted">Open a bank account and choose <strong>Import a statement</strong>.
+      It is the fastest way to get a month of transactions into your books.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

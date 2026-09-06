@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Tax codes{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Tax codes</h1></div>
+
+<div class="alert alert-info">
+  These rates follow the Nigeria Tax Act 2025 and the withholding tax regulations in force for 2026.
+  Change them here if the law changes — existing postings keep the rate they were made at.
+</div>
+
+<form method="post" action="/settings/tax/save">
+  <div class="card">
+    <div class="card-head"><h2>VAT</h2></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Code</th><th>Description</th><th class="num" style="width:120px">Rate %</th><th style="width:80px">Active</th></tr></thead>
+        <tbody>
+          {% for t in vat %}
+          <tr>
+            <td class="mono">{{ t.code }}<input type="hidden" name="code_id" value="{{ t.id }}"></td>
+            <td>{{ t.name }}{% if t.note %}<div class="muted small">{{ t.note }}</div>{% endif %}</td>
+            <td><input class="num" name="rate" value="{{ t.rate }}"></td>
+            <td class="center"><input type="checkbox" name="active" value="{{ t.id }}" {{ 'checked' if t.is_active }}></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Withholding tax</h2></div>
+    <div class="card-body tight">
+      <p class="hint">The second rate applies when the party has no Tax ID on record — double the standard
+        rate, capped at 20%. Passive income (dividends and interest) is not uplifted.</p>
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Code</th><th>Applies to</th><th class="num" style="width:110px">Rate %</th>
+          <th class="num" style="width:130px">No Tax ID %</th><th style="width:80px">Active</th></tr></thead>
+        <tbody>
+          {% for t in wht %}
+          <tr>
+            <td class="mono">{{ t.code }}<input type="hidden" name="code_id" value="{{ t.id }}"></td>
+            <td>{{ t.name }}{% if t.note %}<div class="muted small">{{ t.note }}</div>{% endif %}</td>
+            <td><input class="num" name="rate" value="{{ t.rate }}"></td>
+            <td><input class="num" name="rate_no_tin" value="{{ t.rate_no_tin }}"></td>
+            <td class="center"><input type="checkbox" name="active" value="{{ t.id }}" {{ 'checked' if t.is_active }}></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Save tax codes</button>
+    <a class="btn" href="/settings">Cancel</a>
+  </div>
+</form>
+
+<div class="card" style="margin-top:1rem">
+  <div class="card-head"><h3>Rules {{ APP_NAME }} applies automatically</h3></div>
+  <div class="card-body">
+    <ul style="padding-left:1.1rem; margin:0">
+      <li>Withholding tax is calculated on the amount <strong>before VAT</strong> — never on the VAT itself.</li>
+      <li>A small company (turnover ₦50 million or less) holding a valid Tax ID does not suffer WHT on
+        transactions of ₦2,000,000 or less. Mark the contact as a small company to apply this.</li>
+      <li>Where no Tax ID is recorded, the rate doubles up to a 20% cap.</li>
+      <li>WHT on purchases is recognised when you <strong>pay</strong>, not when the bill is entered.</li>
+      <li>VAT returns and WHT remittances are both due by the 21st of the following month.</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

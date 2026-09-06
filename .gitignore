@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+build/
+dist/
+build_env/
+*.spec.bak
+.pytest_cache/
+*.db
+*.db-wal
+*.db-shm
+secret.key
+
+# The signing key that licences are issued with. It must never leave the
+# seller's own computer, and must never reach a customer.
+seller/
+licence-*.txt
+licence.key

@@ -1,0 +1,151 @@
+NEXORA BOOKS ON CPANEL
+======================
+
+CHECK THIS FIRST — IT DECIDES EVERYTHING
+----------------------------------------
+
+Log into cPanel and look under SOFTWARE for "Setup Python App".
+
+  * IT IS THERE  →  this will work. Carry on.
+  * IT IS NOT    →  stop. Your hosting can only serve PHP and static files.
+                    Nexora Books is a Python application; there is no way to
+                    upload it into a folder and have it run. You would need a
+                    hosting plan that supports Python applications, or a small
+                    virtual server. Ask your host for "Python application
+                    support" or "CloudLinux Python selector" by name.
+
+This is not something a clever upload gets around. Nexora Books is a program
+that has to be running, not a set of pages that get read.
+
+
+WHAT YOU UPLOAD
+---------------
+
+Everything in the Nexora Books folder EXCEPT these, which have no business on
+a web server:
+
+    seller/                 your licence signing key — never upload this
+    issue_licence.py        it needs that key
+    make_licence_keys.py    it makes that key
+    dist/  build/  build_env/     Windows build leftovers
+    tests/                  not needed to run
+    installer/              Windows only
+
+The rest — app/, deploy/, passenger_wsgi.py, requirements.txt and the text
+files — goes up.
+
+
+THE SETUP, STEP BY STEP
+-----------------------
+
+1.  In cPanel, make the subdomain first. SUBDOMAINS → add "books". Note the
+    document root it gives you.
+
+2.  Upload the files with FILE MANAGER or FTP into a folder in your HOME
+    directory that is NOT inside public_html. For example:
+
+        /home/<your account>/nexorabooks
+
+    Not inside public_html. This matters and is explained below.
+
+3.  SOFTWARE → SETUP PYTHON APP → CREATE APPLICATION.
+
+        Python version           3.11 or newer, whichever is highest
+        Application root         nexorabooks
+        Application URL          books.yourdomain.com
+        Application startup file passenger_wsgi.py
+        Application entry point  application
+
+4.  Still on that screen, add one environment variable:
+
+        NEXORA_DATA = /home/<your account>/nexorabooks-data
+
+    Use your real account name. This folder is where the books live, and it
+    must be outside public_html.
+
+5.  Click CREATE. cPanel shows you a command at the top of the page that looks
+    like "source /home/.../virtualenv/.../bin/activate". Copy it.
+
+6.  TERMINAL (in cPanel, under Advanced), paste that command, then:
+
+        cd ~/nexorabooks
+        pip install -r deploy/requirements-cpanel.txt
+
+    If there is no Terminal, the Setup Python App screen has a
+    "Configuration files" box — put deploy/requirements-cpanel.txt in it and
+    press "Run Pip Install".
+
+7.  Back on the Python App screen, press RESTART.
+
+8.  Open https://books.yourdomain.com — you should see the sign-in page.
+    Sign in as admin / admin123 and CHANGE THAT PASSWORD IMMEDIATELY. It is on
+    the open internet now.
+
+
+WHY THE DATA FOLDER MUST BE OUTSIDE PUBLIC_HTML
+-----------------------------------------------
+
+Anything under public_html is handed to anybody who asks for it. Your books
+are a single file — company.db. Put it under public_html and a stranger who
+guesses the name downloads every invoice, every salary and every customer's
+details. No password is involved. It is just a file on a web server.
+
+Nexora Books now refuses to start if it finds its data folder in there, and
+tells you how to move it. That refusal is deliberate: an application that will
+not start is a bad afternoon, and a ledger readable by the internet is not.
+
+
+FOUR THINGS ABOUT SHARED HOSTING YOU SHOULD KNOW
+------------------------------------------------
+
+I would rather you knew these now than discovered them in month three.
+
+1. BACKUPS WILL NOT RUN BY THEMSELVES.
+   Shared hosting stops an application when nobody is using it, and the
+   automatic backup inside Nexora Books only runs while the application is
+   running. So it will not fire reliably at 7pm.
+
+   Use cPanel's own backup instead, and set a CRON JOB to copy the data folder
+   somewhere off this server:
+
+       tar czf ~/backups/nexora-$(date +\%F).tar.gz -C ~ nexorabooks-data
+
+   Then download one and open it. A backup nobody has ever restored is a guess.
+
+2. ASK YOUR HOST WHETHER YOUR HOME FOLDER IS ON LOCAL STORAGE.
+   Nexora Books keeps its books in SQLite, which relies on file locking. On
+   some shared hosts the home directory is network storage, where locking is
+   unreliable and a database can be corrupted by two people saving at once.
+   Ask the question in those words. If the answer is network or NFS storage,
+   do not run a shared ledger on it.
+
+3. MEMORY AND PROCESS LIMITS.
+   Printing a PDF and importing a bank statement are the heavy moments. Shared
+   plans cap memory and the number of running processes. A handful of staff is
+   usually fine; twenty people and month-end reports may not be.
+
+4. YOUR BOOKS SHARE A MACHINE WITH STRANGERS.
+   That is what shared hosting is. For your own company it is a judgement you
+   can make. Before you host a CUSTOMER's payroll this way, think about what
+   you would tell them if the host were breached.
+
+None of this makes cPanel wrong for getting started. It makes a small virtual
+server — which Tavo Networks is well placed to run — the better home once this
+is carrying real money.
+
+
+IF SOMETHING GOES WRONG
+-----------------------
+
+  * A blank page or "500" → the Python App screen has a log link, and there is
+    usually stderr.log in the application folder. The reason is in there.
+  * "It will not start" mentioning public_html → step 4. Move the data folder.
+  * Changes not taking effect → press RESTART on the Python App screen, or
+    run:  touch ~/nexorabooks/tmp/restart.txt
+  * The licence → the machine code is the server's, not your computer's.
+    Issue a licence against it from your own machine or it goes read-only
+    after 30 days.
+
+
+                                        Tavo Networks Limited (RC 8237044)
+                                        support@tavonetworks.tech

@@ -1,0 +1,82 @@
+NEXORA BOOKS — REFUNDS AND SUPPORT
+==================================
+
+
+THE THIRTY DAYS BEFORE YOU BUY
+
+Nexora Books runs in full for 30 days without a licence key. Everything works:
+every screen, every report, your real figures, your real staff.
+
+Use it. That is what the trial is for, and it is the reason the refund policy
+below can be short — nobody should be buying this without having already run
+their own books through it.
+
+
+IF YOU CHANGE YOUR MIND
+
+Ask within 14 days of buying and we will refund you in full, no questions
+asked. Write to support@tavonetworks.tech with the name you bought under.
+
+We will refund the way you paid, within 7 working days of agreeing.
+
+
+IF IT DOES NOT DO WHAT WE SAID
+
+For 90 days after you buy, if the software does not do what our description
+says it does, tell us. We will either fix it or refund you in full — your
+choice, not ours.
+
+Please tell us what happened first. Settings > Diagnostics makes a file with
+everything we need in it. Most of what gets reported turns out to be something
+we can fix in a day.
+
+
+WHAT WE DO NOT REFUND
+
+  * A licence bought more than 90 days ago that works as described.
+  * A licence you can no longer use because your computer was replaced. Tell
+    us and we will issue a new key for the new computer, free.
+  * Time you spent, or business you lost. See clause 8 of the licence
+    agreement.
+
+
+IF YOUR COMPUTER DIES
+
+Your licence is tied to one computer. If that computer is lost, stolen, broken
+or replaced, write to support@tavonetworks.tech with the machine code from the
+new one and we will issue a new key. There is no charge and no limit on how
+often.
+
+Restore your books from a backup and carry on. This is why the automatic
+backup asks you for a second folder — put it on a flash drive or a synced
+folder and a dead computer costs you a morning rather than a year.
+
+
+WHAT SUPPORT INCLUDES
+
+  * Help getting installed and set up.
+  * Help bringing your existing books in.
+  * Fixing anything that is genuinely broken.
+  * A new licence key when your computer changes.
+
+Reach us at support@tavonetworks.tech or +234 808 334 2954, Monday to Friday,
+9am to 5pm West Africa Time. We answer within one working day.
+
+
+WHAT SUPPORT IS NOT
+
+We are not your accountant and we cannot be. We will not tell you what to file,
+what rate applies to you, or how to treat a transaction — not because we are
+being unhelpful, but because getting that wrong would cost you far more than
+this software costs, and an accountant who knows your business is the right
+person to ask.
+
+What we will always do is show you how to get the software to do what your
+accountant tells you it should.
+
+
+    Tavo Networks Limited (RC 8237044)
+    Lekki, Lagos, Nigeria
+
+
+Version 2.11.7 — 1 September 2026

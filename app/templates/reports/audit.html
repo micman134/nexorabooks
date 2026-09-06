@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter %}
+{% block title %}Audit trail{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Audit trail</h1>
+    <div class="muted small">Every action recorded between {{ start|dt }} and {{ end|dt }}</div>
+  </div>
+  <div class="actions no-print"><button class="btn btn-primary" onclick="window.print()">Print</button></div>
+</div>
+
+{{ period_filter(preset, start, end) }}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>When</th><th>User</th><th>Action</th><th>Record</th><th>Detail</th><th>From</th></tr></thead>
+      <tbody>
+        {% for l in logs %}
+        <tr>
+          <td class="nowrap small">{{ l.at|dt('%d %b %Y %H:%M:%S') }}</td>
+          <td>{{ l.username }}</td>
+          <td><span class="badge {{ 'badge-void' if l.action in ('VOID','REVERSE','DELETE','LOGIN_FAILED') else 'badge-open' }}">{{ l.action|lower }}</span></td>
+          <td class="small">{{ l.entity }}{{ ' #' ~ l.entity_id if l.entity_id }}</td>
+          <td class="small">{{ l.detail }}</td>
+          <td class="small muted">{{ l.ip }}</td>
+        </tr>
+        {% else %}<tr><td colspan="6" class="empty">Nothing recorded in this period.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="hint">Showing at most 1,000 entries, newest first. Narrow the dates to see older activity.</p>
+{% endblock %}

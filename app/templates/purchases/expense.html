@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Record an expense{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Record an expense</h1>
+    <div class="muted small">For things you paid for on the spot — no supplier account, no bill to chase.</div>
+  </div>
+</div>
+
+<form method="post" action="/purchases/expense/save" style="max-width:820px">
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field"><label for="d">Date</label>
+          <input id="d" type="date" name="date" value="{{ today.isoformat() }}" required autofocus></div>
+        <div class="field"><label for="b">Paid from</label>
+          <select id="b" name="bank_account_id" required>
+            {% for b in banks %}<option value="{{ b.id }}" {{ 'selected' if b.is_default }}>{{ b.name }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="r">Reference</label>
+          <input id="r" name="reference" placeholder="Receipt or teller number"></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label for="acc">Expense account *</label>
+          <select id="acc" name="account_id" required>
+            <option value="">— what was it for? —</option>
+            {% for a in accounts %}<option value="{{ a.id }}">{{ a.code }} — {{ a.name }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="amt">Amount before VAT *</label>
+          <input id="amt" class="num" name="amount" placeholder="0.00" required></div>
+        <div class="field"><label for="tax">VAT</label>
+          <select id="tax" name="tax_code_id">
+            <option value="" data-rate="0">No VAT</option>
+            {% for t in vat_codes %}<option value="{{ t.id }}" data-rate="{{ t.rate }}">{{ t.code }} ({{ t.rate }}%)</option>{% endfor %}
+          </select></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label for="c">Paid to (optional)</label>
+          <select id="c" name="contact_id">
+            <option value="">— not recorded —</option>
+            {% for c in vendors %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="payee">…or just a name</label>
+          <input id="payee" name="payee" placeholder="e.g. Ikeja market"></div>
+        <div class="field"><label for="wht">Withholding tax to deduct</label>
+          <select id="wht" name="wht_code_id">
+            <option value="" data-rate="0">None</option>
+            {% for w in wht_codes %}<option value="{{ w.id }}" data-rate="{{ w.rate }}">{{ w.name }} — {{ w.rate }}%</option>{% endfor %}
+          </select></div>
+      </div>
+
+      <div class="field"><label for="memo">What was it for?</label>
+        <input id="memo" name="memo" placeholder="e.g. Diesel for the generator, week of 12 August"></div>
+
+      <div class="totals" style="margin-top:1rem">
+        <table>
+          <tr><td>Net</td><td id="e-net">—</td></tr>
+          <tr><td>VAT</td><td id="e-vat">—</td></tr>
+          <tr><td>WHT deducted</td><td id="e-wht">—</td></tr>
+          <tr class="grand"><td>Cash out</td><td id="e-cash">—</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Record the expense</button>
+    <a class="btn" href="/">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var SYM = document.body.getAttribute('data-symbol') || '₦';
+  var amt = document.getElementById('amt'), tax = document.getElementById('tax'), wht = document.getElementById('wht');
+  function num(v) { var n = parseFloat(String(v || '0').replace(/,/g, '')); return isNaN(n) ? 0 : n; }
+  function rate(sel) { var o = sel.options[sel.selectedIndex]; return o ? num(o.getAttribute('data-rate')) : 0; }
+  function fmt(n) { return SYM + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function calc() {
+    var net = num(amt.value);
+    var v = Math.round(net * rate(tax)) / 100;
+    var w = Math.round(net * rate(wht)) / 100;
+    document.getElementById('e-net').textContent = fmt(net);
+    document.getElementById('e-vat').textContent = fmt(v);
+    document.getElementById('e-wht').textContent = w ? '(' + fmt(w) + ')' : fmt(0);
+    document.getElementById('e-cash').textContent = fmt(net + v - w);
+  }
+  [amt, tax, wht].forEach(function (el) { el.addEventListener('input', calc); el.addEventListener('change', calc); });
+  calc();
+});
+</script>
+{% endblock %}

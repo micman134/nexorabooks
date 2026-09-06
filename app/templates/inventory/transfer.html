@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Move stock{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Move stock between places</h1>
+    <div class="muted small">Nothing is posted to the ledger — the stock is worth the same
+      wherever it sits. Only where it is changes.</div>
+  </div>
+  <div class="actions"><a class="btn" href="/inventory/locations">Places</a></div>
+</div>
+
+<form method="post" action="/inventory/transfer" style="max-width:820px">
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field" style="flex:2"><label for="it">Item *</label>
+          <select id="it" name="item_id" required autofocus>
+            <option value="">— choose an item —</option>
+            {% for i in items %}
+            <option value="{{ i.id }}" {{ 'selected' if item_id == i.id }}>
+              {{ i.name }} — {{ i.qty_on_hand|qty }} {{ i.unit }} on hand</option>
+            {% endfor %}
+          </select></div>
+        <div class="field"><label for="qt">How much *</label>
+          <input id="qt" class="num" name="qty" required placeholder="0"></div>
+        <div class="field"><label for="dt">Date</label>
+          <input id="dt" type="date" name="date" value="{{ today.isoformat() }}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="fl">From *</label>
+          <select id="fl" name="from_location_id" required>
+            {% for l in locations %}
+            <option value="{{ l.id }}" {{ 'selected' if l.is_default }}>{{ l.name }}</option>
+            {% endfor %}
+          </select></div>
+        <div class="field"><label for="tl">To *</label>
+          <select id="tl" name="to_location_id" required>
+            {% for l in locations %}
+            <option value="{{ l.id }}" {{ 'selected' if not l.is_default and loop.first }}>{{ l.name }}</option>
+            {% endfor %}
+          </select></div>
+        <div class="field" style="flex:2"><label for="mm">Note</label>
+          <input id="mm" name="memo" placeholder="e.g. Van 3, waybill 0412"></div>
+      </div>
+      {% if locations|length < 2 %}
+      <div class="alert alert-warning">
+        There is only one place to keep stock, so there is nowhere to move it to.
+        <a href="/inventory/locations">Add another</a> first.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit" {{ 'disabled' if locations|length < 2 }}>Move it</button>
+    <a class="btn" href="/inventory">Cancel</a>
+  </div>
+</form>
+
+<p class="muted small">
+  For an item costed first in, first out, the cost layers move with the goods — so a sale
+  from the receiving store still costs what those particular goods cost.
+</p>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Import {{ sheet.title|lower }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ sheet.title }}</h1>
+  <div class="actions"><a class="btn" href="/import">All imports</a></div>
+</div>
+
+<p class="small">{{ sheet.what }}</p>
+{% if sheet.warning %}
+<div class="alert alert-warning">{{ sheet.warning }}</div>
+{% endif %}
+
+<div class="card" style="max-width:820px">
+  <div class="card-head"><h2>Upload your file</h2></div>
+  <div class="card-body">
+    <form method="post" action="/import/{{ sheet.key }}" enctype="multipart/form-data">
+      <div class="field">
+        <label for="f">CSV file</label>
+        <input id="f" type="file" name="file" accept=".csv,text/csv,text/plain" required>
+        <div class="hint">
+          In Excel or Google Sheets choose <em>File &rsaquo; Save as</em> or
+          <em>Download</em>, and pick CSV. Commas, semicolons and tabs all work.
+        </div>
+      </div>
+      {% if sheet.key == 'trial_balance' %}
+      <div class="field" style="max-width:260px">
+        <label for="d">Dated</label>
+        <input id="d" type="date" name="date" value="{{ today }}">
+        <div class="hint">The day you are switching over — usually the last day of
+          the month before you start.</div>
+      </div>
+      {% endif %}
+      <div class="btn-row">
+        <button class="btn btn-primary" type="submit">Read the file</button>
+        <a class="btn" href="/import/{{ sheet.key }}/template">Download a blank template</a>
+      </div>
+      <p class="muted small" style="margin-top:.75rem">
+        Reading a file changes nothing. You will see what it would do first.
+      </p>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="max-width:820px; margin-top:1.5rem">
+  <div class="card-head"><h2>Columns it looks for</h2></div>
+  <div class="card-body">
+    <p class="muted small">
+      Headings are matched by meaning, so your own wording usually works —
+      "Customer Name", "CLIENT", and "name" are all understood. Columns nobody
+      recognises are reported rather than quietly ignored, and any column you do
+      not have can simply be left out.
+    </p>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Column</th><th>Also accepted as</th><th>What goes in it</th></tr></thead>
+        <tbody>
+          {% for c in sheet.columns %}
+          <tr>
+            <td><strong>{{ c.heading }}</strong>{% if c.required %} <span class="badge badge-void">needed</span>{% endif %}</td>
+            <td class="muted small">{{ c.labels[1:]|join(', ') }}</td>
+            <td class="small">
+              {{ c.note }}
+              {% if c.example %}<span class="muted">e.g. {{ c.example }}</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

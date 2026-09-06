@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Going through the statement{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ bank.name }}</h1>
+    <div class="muted small">
+      {{ batch.filename or 'statement' }} · {{ batch.first_date|dt }} – {{ batch.last_date|dt }}
+      · {{ batch.line_count }} transactions
+    </div>
+  </div>
+  <div class="actions no-print">
+    <form method="post" action="/banking/import/{{ batch.id }}/rematch" style="display:inline">
+      <button class="btn btn-sm" type="submit">Look again</button>
+    </form>
+    <a class="btn" href="/banking/{{ bank.id }}/import">Import another</a>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent">
+    <div class="label">Money in</div>
+    <div class="value pos">{{ batch.total_in|money }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Money out</div>
+    <div class="value neg">{{ batch.total_out|money }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Bank says you had</div>
+    <div class="value">{{ batch.closing_balance|money if batch.closing_balance is not none else '—' }}</div>
+    <div class="sub">at {{ batch.last_date|dt }}</div>
+  </div>
+  {% set gap = (batch.closing_balance - book_balance) if batch.closing_balance is not none else None %}
+  <div class="stat {{ 'danger' if gap else ('accent' if gap == 0 else '') }}">
+    <div class="label">Your books say</div>
+    <div class="value">{{ book_balance|money }}</div>
+    <div class="sub">
+      {% if gap is none %}no closing balance in the file
+      {% elif gap == 0 %}reconciled — they agree exactly
+      {% else %}{{ gap|money }} still to account for{% endif %}
+    </div>
+  </div>
+</div>
+
+{# ---- how much was recognised ------------------------------------------ #}
+<div class="card">
+  <div class="card-head">
+    <h2>
+      {% if counts.done == counts.all %}Everything on this statement is dealt with.
+      {% elif counts.strong %}{{ counts.strong }} of {{ counts.all }} recognised straight away.
+      {% else %}{{ counts.all - counts.done }} to go through.{% endif %}
+    </h2>
+    {% if counts.strong and can(user, 'journal') %}
+    <div class="actions">
+      <form method="post" action="/banking/import/{{ batch.id }}/confirm-strong"
+            onsubmit="return confirm('Confirm and post the {{ counts.strong }} lines the software is sure about?\n\nEach one is posted separately and can be reversed like any other entry.')">
+        <button class="btn btn-primary btn-sm" type="submit">
+          Confirm the {{ counts.strong }} it is sure about
+        </button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    {{ split|safe }}
+    <div class="split-key">
+      <span><i style="background:var(--good)"></i> {{ counts.strong }} recognised</span>
+      <span><i style="background:var(--warn)"></i> {{ counts.weak }} worth a look</span>
+      <span><i style="background:var(--danger)"></i> {{ counts.todo }} needs you</span>
+      <span><i style="background:var(--accent)"></i> {{ counts.done }} dealt with</span>
+    </div>
+  </div>
+</div>
+
+{# ---- the shape of the month ------------------------------------------- #}
+{% if chart %}
+<div class="card">
+  <div class="card-head">
+    <h2>Money in and out</h2>
+    <span class="muted small">
+      <span class="swatch swatch-in"></span> in
+      <span class="swatch swatch-out"></span> out
+      <span class="swatch swatch-bal"></span> balance
+    </span>
+  </div>
+  <div class="card-body">
+    <div class="chart-wrap">{{ chart|safe }}</div>
+    <div class="chart-labels">{% for b in buckets %}<span>{{ b.label }}</span>{% endfor %}</div>
+  </div>
+</div>
+{% endif %}
+
+{# ---- where it went ----------------------------------------------------- #}
+<div class="grid grid-2">
+  {% for title, rows, colour, hint in [
+      ('Where the money went', breakdown.out, 'var(--danger)', 'Largest first. This is the one that finds the subscription nobody cancelled.'),
+      ('Where it came from', breakdown['in'], 'var(--good)', 'Grouped by what the bank called the payer.')] %}
+  <div class="card">
+    <div class="card-head"><h2>{{ title }}</h2></div>
+    <div class="card-body">
+      {% if rows %}
+      <table class="data breakdown">
+        {% for name, value, share in rows %}
+        <tr>
+          <td>{{ name }}
+            <div class="bar"><span style="width:{{ share|round(1) }}%; background:{{ colour }}"></span></div>
+          </td>
+          <td class="num nowrap">{{ value|money }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      <p class="muted small" style="margin-top:.6rem">{{ hint }}</p>
+      {% else %}
+      <p class="muted">Nothing {{ 'went out' if loop.first else 'came in' }} on this statement.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ---- the lines --------------------------------------------------------- #}
+<div class="card">
+  <div class="card-head">
+    <h2>The transactions</h2>
+    <div class="actions no-print">
+      {% for key, label in [('todo', 'Still to do'), ('done', 'Dealt with'), ('all', 'Everything')] %}
+      <a class="btn btn-sm {{ 'btn-primary' if show == key }}"
+         href="?show={{ key }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if not lines %}
+    <div class="empty">
+      {% if show == 'todo' %}Nothing left on this statement. Every line has been dealt with.
+      {% else %}Nothing to show here.{% endif %}
+    </div>
+  {% else %}
+  <div class="table-wrap">
+    <table class="data statement">
+      <thead>
+        <tr><th>Date</th><th>What the bank said</th><th class="num">Amount</th>
+            <th>What it looks like</th><th class="no-print"></th></tr>
+      </thead>
+      <tbody>
+      {% for line in lines %}
+        <tr class="{{ 'row-done' if line.status in ('CONFIRMED', 'IGNORED') }}">
+          <td class="nowrap">{{ line.date|dt }}</td>
+          <td>
+            <div class="desc">{{ line.description }}</div>
+            {% if line.reference %}<div class="muted small">{{ line.reference }}</div>{% endif %}
+          </td>
+          <td class="num {{ 'pos' if line.amount > 0 else 'neg' }} nowrap">{{ line.amount|money }}</td>
+          <td>
+            {% if line.status == 'CONFIRMED' %}
+              <span class="badge badge-paid">done</span>
+              {% if line.entry_id %}<a href="/journals/{{ line.entry_id }}">see the entry</a>{% endif %}
+            {% elif line.status == 'IGNORED' %}
+              <span class="badge badge-draft">left out</span>
+            {% elif line.action %}
+              <span class="badge {{ 'badge-paid' if line.score >= strong_mark else 'badge-part' }}">
+                {{ {'CLEAR': 'already in your books', 'RECEIPT': 'a customer paying you',
+                    'PAYMENT': 'paying a supplier', 'POST': 'an expense or income'}.get(line.action, line.action) }}
+              </span>
+              <div class="muted small">{{ line.reason }}</div>
+            {% else %}
+              <span class="badge badge-void">needs you</span>
+              <div class="muted small">{{ line.reason }}</div>
+            {% endif %}
+          </td>
+          <td class="right nowrap no-print">
+            {% if line.status not in ('CONFIRMED', 'IGNORED') and can(user, 'journal') %}
+              {% if line.action %}
+              <form method="post" action="/banking/import/{{ batch.id }}/line/{{ line.id }}" style="display:inline">
+                <input type="hidden" name="action" value="{{ line.action }}">
+                <input type="hidden" name="show" value="{{ show }}">
+                <button class="btn btn-sm btn-primary" type="submit">Yes, that's it</button>
+              </form>
+              {% endif %}
+              <a class="btn btn-sm" href="/banking/import/{{ batch.id }}/line/{{ line.id }}/choices">
+                {{ 'Something else' if line.action else 'Tell it what this was' }}
+              </a>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<p class="muted small">
+  Confirming a line posts that line and nothing else. Everything it creates is an
+  ordinary entry — you can open it, print it, and reverse it like any other.
+</p>
+{% endblock %}

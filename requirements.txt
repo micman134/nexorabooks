@@ -1,0 +1,23 @@
+# Nexora Books — runtime dependencies
+#
+# Deliberately small, and deliberately pure Python. Every line here installs
+# from a wheel that needs no compiler, on any Python version, so a customer
+# never sees "Microsoft Visual C++ 14.0 is required" on their own laptop.
+#
+# Note uvicorn WITHOUT [standard]. The standard extra pulls in httptools,
+# watchfiles and PyYAML, which are C and Rust extensions: on a Python version
+# newer than their published wheels — 3.14, say — pip falls back to building
+# them from source and the install fails on a machine with no compiler. Plain
+# uvicorn needs only click and h11, both pure Python, and serves this
+# application exactly as well.
+fastapi>=0.110
+uvicorn>=0.27
+sqlalchemy>=2.0
+jinja2>=3.1
+python-multipart>=0.0.9
+itsdangerous>=2.1
+
+# Development and packaging only (installed by build_windows.bat):
+#   pytest, httpx        run the test suite
+#   pywebview            the desktop window
+#   pyinstaller          builds NexoraBooks.exe

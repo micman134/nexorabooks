@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Remittances due{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Remittances due</h1>
+    <div class="muted small">What you are holding on behalf of staff and the authorities</div>
+  </div>
+  <div class="actions"><a class="btn" href="/payroll">Back to payroll</a></div>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat {{ 'warn' if total else 'accent' }}">
+    <div class="label">Total held</div><div class="value">{{ total|money }}</div>
+    <div class="sub">{{ 'Nothing outstanding' if not total else 'Across ' ~ items|length ~ ' scheme(s)' }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>What is owed</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>What</th><th>Ledger account</th><th>Deadline</th><th class="num">Balance</th><th></th></tr></thead>
+      <tbody>
+        {% for i in items %}
+        <tr>
+          <td><strong>{{ i.label }}</strong></td>
+          <td class="small muted">{{ i.account.code }} — {{ i.account.name }}</td>
+          <td class="small">{{ i.deadline }}</td>
+          <td class="num strong">{{ i.balance|money }}</td>
+          <td class="right">
+            {% if can(user, 'journal') %}
+            <button class="btn btn-sm" type="button"
+                    onclick="prefill({{ i.account.id }}, '{{ i.balance|naira }}', '{{ i.label|replace("'", "") }}')">Remit</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty">Nothing outstanding — everything has been remitted.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if items %}
+      <tfoot><tr><td colspan="3">Total</td><td class="num">{{ total|money }}</td><td></td></tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+{% if can(user, 'journal') %}
+<div class="card">
+  <div class="card-head"><h2 id="remit-title">Record a remittance</h2></div>
+  <form class="card-body" method="post" action="/payroll/remittances/pay" style="max-width:760px">
+    <div class="field-row">
+      <div class="field"><label for="acc">What are you remitting?</label>
+        <select id="acc" name="account_id" required>
+          <option value="">— choose —</option>
+          {% for i in items %}
+          <option value="{{ i.account.id }}" data-balance="{{ i.balance|naira }}">{{ i.label }} — {{ i.balance|money }} held</option>
+          {% endfor %}
+        </select></div>
+      <div class="field"><label for="amt">Amount</label>
+        <input id="amt" class="num" name="amount" placeholder="0.00" required></div>
+      <div class="field"><label for="dt">Date</label>
+        <input id="dt" type="date" name="date" value="{{ today.isoformat() }}" required></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="bk">Paid from</label>
+        <select id="bk" name="bank_account_id" required>
+          {% for b in banks %}<option value="{{ b.id }}" {{ 'selected' if b.is_default }}>{{ b.name }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="rf">Reference</label>
+        <input id="rf" name="reference" placeholder="Receipt or transaction number"></div>
+      <div class="field"><label for="mm">Note</label>
+        <input id="mm" name="memo" placeholder="e.g. PAYE for July 2026"></div>
+    </div>
+    <button class="btn btn-primary" type="submit">Record the remittance</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><h3>Deadlines to keep</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <tbody>
+        <tr><td>PAYE</td><td>To the Internal Revenue Service of the state where each employee
+          <em>lives</em> — by the 10th of the month after deduction.</td></tr>
+        <tr><td>Pension</td><td>To each employee's PFA — within 7 working days of paying salaries.
+          Late payment carries a penalty of 2% a month.</td></tr>
+        <tr><td>NHF</td><td>To the Federal Mortgage Bank of Nigeria — within one month of deduction.</td></tr>
+        <tr><td>NSITF</td><td>Employee compensation contribution — by the 16th of the following month.</td></tr>
+        <tr><td>ITF</td><td>Annually, by 1 April. Employers with 5 or more staff, or turnover of
+          ₦50 million or more.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function prefill(accountId, balance, label) {
+  document.getElementById('acc').value = accountId;
+  document.getElementById('amt').value = balance;
+  document.getElementById('mm').value = label;
+  document.getElementById('remit-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var acc = document.getElementById('acc');
+  if (!acc) return;
+  acc.addEventListener('change', function () {
+    var opt = acc.options[acc.selectedIndex];
+    var bal = opt && opt.getAttribute('data-balance');
+    if (bal) document.getElementById('amt').value = bal;
+  });
+});
+</script>
+{% endblock %}

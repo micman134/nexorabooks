@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter, letterhead %}
+{% block title %}Fixed asset schedule{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Fixed asset schedule</h1>
+    <div class="muted small">{{ company.name }} · {{ start|dt }} to {{ end|dt }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="?period={{ preset }}&start={{ start }}&end={{ end }}&format=csv">Export CSV</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+    <a class="btn" href="/assets">Asset register</a>
+  </div>
+</div>
+
+{{ period_filter(preset, start, end) }}
+
+<div class="print-only">{{ letterhead(company) }}</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th rowspan="2">Category</th>
+          <th colspan="4" class="center">Cost</th>
+          <th colspan="4" class="center">Depreciation</th>
+          <th rowspan="2" class="num">Net book value</th>
+        </tr>
+        <tr>
+          <th class="num">At {{ start|dt('%d %b') }}</th><th class="num">Additions</th>
+          <th class="num">Disposals</th><th class="num">At {{ end|dt('%d %b') }}</th>
+          <th class="num">At {{ start|dt('%d %b') }}</th><th class="num">Charge</th>
+          <th class="num">On disposals</th><th class="num">At {{ end|dt('%d %b') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.category }}</td>
+          <td class="num">{{ r.cost_open|money if r.cost_open else '' }}</td>
+          <td class="num">{{ r.additions|money if r.additions else '' }}</td>
+          <td class="num">{{ ('(' ~ r.disposals_cost|money ~ ')') if r.disposals_cost else '' }}</td>
+          <td class="num">{{ r.cost_close|money }}</td>
+          <td class="num">{{ r.dep_open|money if r.dep_open else '' }}</td>
+          <td class="num">{{ r.charge|money if r.charge else '' }}</td>
+          <td class="num">{{ ('(' ~ r.disposals_dep|money ~ ')') if r.disposals_dep else '' }}</td>
+          <td class="num">{{ r.dep_close|money }}</td>
+          <td class="num"><b>{{ r.nbv_close|money }}</b></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="empty">
+          Nothing on the register for this period. <a href="/assets/new">Add an asset</a>.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+      {% if rows %}
+      <tfoot>
+        <tr>
+          <th>Total</th>
+          <th class="num">{{ total.cost_open|money }}</th>
+          <th class="num">{{ total.additions|money }}</th>
+          <th class="num">{{ ('(' ~ total.disposals_cost|money ~ ')') if total.disposals_cost else '—' }}</th>
+          <th class="num">{{ total.cost_close|money }}</th>
+          <th class="num">{{ total.dep_open|money }}</th>
+          <th class="num">{{ total.charge|money }}</th>
+          <th class="num">{{ ('(' ~ total.disposals_dep|money ~ ')') if total.disposals_dep else '—' }}</th>
+          <th class="num">{{ total.dep_close|money }}</th>
+          <th class="num">{{ total.nbv_close|money }}</th>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+<p class="muted small">
+  This is the note to the accounts an auditor asks for. The closing net book value of
+  {{ total.nbv_close|money }} should equal the fixed assets figure on the balance sheet at
+  {{ end|dt }}. If it does not, something has been posted straight to a fixed asset account
+  by hand — check the <a href="/reports/general-ledger">general ledger</a> for those accounts.
+</p>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Adjust {{ item.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Adjust stock — {{ item.name }}</h1>
+    <div class="muted small">Currently {{ item.qty_on_hand|qty }} {{ item.unit }} valued at {{ item.stock_value|money }}
+      ({{ unit_cost|money }} each)</div>
+  </div>
+</div>
+
+<form method="post" action="/inventory/{{ item.id }}/adjust" style="max-width:640px">
+  <div class="card">
+    <div class="card-body">
+      <div class="field"><label for="d">Date</label>
+        <input id="d" type="date" name="date" value="{{ today.isoformat() }}" required></div>
+
+      <div class="field"><label>What are you doing?</label>
+        <div class="check"><input type="radio" id="mc" name="mode" value="count" checked>
+          <label for="mc">I counted the stock — set it to what I found</label></div>
+        <div class="check"><input type="radio" id="md" name="mode" value="delta">
+          <label for="md">Add or remove a quantity</label></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label for="cq">Counted quantity</label>
+          <input id="cq" class="num" name="counted_qty" value="{{ item.qty_on_hand|qty }}"></div>
+        <div class="field"><label for="dq">Quantity to add (use a minus for removals)</label>
+          <input id="dq" class="num" name="delta_qty" placeholder="0"></div>
+        <div class="field"><label for="uc">Unit cost</label>
+          <input id="uc" class="num" name="unit_cost" value="{{ unit_cost|naira }}">
+          <div class="hint">Leave as-is to keep the current average cost.</div></div>
+      </div>
+
+      <div class="field"><label for="r">Reason *</label>
+        <input id="r" name="reason" required placeholder="Stock count, damage, theft, opening balance, sample given out…"></div>
+
+      <div class="alert alert-info">
+        A stock gain is posted to <strong>4940 Stock Adjustment Gain</strong>; a shortage to
+        <strong>5050 Stock Adjustment / Shrinkage</strong>. The inventory account moves by the same amount,
+        so the ledger and the stock records stay in step.
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Post the adjustment</button>
+    <a class="btn" href="/inventory/{{ item.id }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

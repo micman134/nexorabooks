@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Receipt {{ inv.number }}{% endblock %}
+{% block content %}
+<div class="page-head no-print">
+  <div>
+    <h1>Receipt {{ inv.number }}</h1>
+    <div class="muted small">{{ inv.date|dt }} · {{ inv.total|money }}</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/pos">Back to the till</a>
+    <a class="btn" href="/pos/sale/{{ inv.id }}/receipt.pdf" target="_blank">PDF</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<div class="roll">
+  <div class="roll-head">
+    <strong>{{ company.name }}</strong>
+    {% if company.address %}<div>{{ company.address }}</div>{% endif %}
+    {% if company.phone %}<div>{{ company.phone }}</div>{% endif %}
+    {% if company.vat_reg_no %}<div>VAT {{ company.vat_reg_no }}</div>{% endif %}
+  </div>
+
+  <div class="roll-facts">
+    <span>{{ inv.number }}</span><span>{{ inv.date|dt }}</span>
+  </div>
+  {% if inv.reference %}<div class="roll-ref">{{ inv.reference }}</div>{% endif %}
+  {% if inv.contact and inv.contact.name != 'Walk-in customer' %}
+  <div class="roll-ref">{{ inv.contact.name }}</div>
+  {% endif %}
+
+  <table class="roll-lines">
+    {% for line in inv.lines %}
+    <tr><td colspan="2">{{ line.description }}</td></tr>
+    <tr>
+      <td class="q">{{ line.qty|qty }} × {{ line.unit_price|money }}</td>
+      <td class="a">{{ line.net|money }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <table class="roll-totals">
+    {% if inv.vat_total %}
+    <tr><td>Subtotal</td><td class="a">{{ inv.subtotal|money }}</td></tr>
+    <tr><td>VAT</td><td class="a">{{ inv.vat_total|money }}</td></tr>
+    {% endif %}
+    <tr class="big"><td>TOTAL</td><td class="a">{{ inv.total|money }}</td></tr>
+    {% for t in tenders %}
+    <tr><td>{{ t.kind|capitalize }}</td>
+      <td class="a">{{ (t.tendered if t.kind == 'CASH' else t.amount)|money }}</td></tr>
+    {% endfor %}
+    {% set change = tenders|sum(attribute='change') %}
+    {% if change %}
+    <tr class="big"><td>Change</td><td class="a">{{ change|money }}</td></tr>
+    {% endif %}
+  </table>
+
+  <div class="roll-foot">
+    Thank you<br>
+    <span class="small">Goods may be exchanged with this receipt</span>
+  </div>
+</div>
+{% endblock %}

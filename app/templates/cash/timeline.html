@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}What is coming{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>What is coming</h1>
+    <div class="muted small">
+      {{ t.start|dt }} to {{ t.end|dt }} · built from what you have already committed to
+    </div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/cash/collections">Who to chase</a>
+    <a class="btn" href="/cash/what-if">What if…</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<form class="filters no-print" method="get">
+  <div class="field">
+    <label for="days">Look ahead</label>
+    <select id="days" name="days" onchange="this.form.submit()">
+      {% for value, label in horizons %}
+      <option value="{{ value }}" {{ 'selected' if value == days }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+{# ---- the headline ------------------------------------------------------ #}
+<div class="card">
+  <div class="card-body">
+    <div class="movement {{ 'down' if not t.survives else 'up' }}">
+      <div class="movement-figure">
+        <div class="label">{{ 'Runs out on' if not t.survives else 'Lowest it gets' }}</div>
+        <div class="value">
+          {% if t.survives %}{{ t.lowest|money }}{% else %}{{ t.runs_out_on|dt('%-d %B') }}{% endif %}
+        </div>
+        <div class="sub">
+          {% if t.survives %}on {{ t.lowest_on|dt }}
+          {% else %}{{ t.days_left }} days from now{% endif %}
+        </div>
+      </div>
+      <div class="movement-words">
+        {% if t.already_short %}
+        <p><strong>You already owe more than you have.</strong>
+          {{ t.overdue_out|money }} is past its due date with suppliers, against
+          {{ t.opening|money }} in the bank and {{ t.overdue_in|money }} overdue from
+          customers.</p>
+        <p class="muted">That is not a forecast — it is where you stand this morning.
+          The date below is when the balance goes under on the timeline; the real
+          question is which of those overdue bills can wait, and which customers can
+          be made to pay this week.</p>
+        {% elif t.survives %}
+        <p>On what is already committed, you stay in funds for the whole of the next
+          {{ days }} days.</p>
+        <p class="muted">The tightest day is {{ t.lowest_on|dt }}, when the balance is
+          down to {{ t.lowest|money }}. You start with {{ t.opening|money }} and finish
+          with {{ t.closing|money }}.</p>
+        {% else %}
+        <p><strong>On what is already committed, the money runs out on
+          {{ t.runs_out_on|dt }}</strong> — {{ t.days_left }} days from now.</p>
+        <p class="muted">That is not a prediction about your business. It is what
+          happens if every invoice is paid the way that customer normally pays and
+          every bill is paid on its due date. The three things below move that date
+          furthest.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">In the bank now</div>
+    <div class="value {{ 'neg' if t.opening < 0 }}">{{ t.opening|money }}</div></div>
+  <div class="stat"><div class="label">Expected in</div>
+    <div class="value pos">{{ t.total_in|money }}</div></div>
+  <div class="stat"><div class="label">Committed out</div>
+    <div class="value neg">{{ t.total_out|money }}</div></div>
+  <div class="stat {{ 'danger' if t.closing < 0 }}"><div class="label">Left at the end</div>
+    <div class="value {{ 'neg' if t.closing < 0 }}">{{ t.closing|money }}</div></div>
+</div>
+
+{# ---- what would help --------------------------------------------------- #}
+{% if levers %}
+<div class="card">
+  <div class="card-head">
+    <h2>What would help most</h2>
+    <span class="muted small">Largest first, by the money involved.</span>
+  </div>
+  <ul class="points">
+    {% for l in levers %}
+    <li class="point-{{ 'urgent' if loop.first else 'watch' }}">
+      <span class="point-mark" aria-hidden="true"></span>
+      <div class="point-body">
+        <strong>{{ l.title }}</strong>
+        <span class="muted small">{{ l.detail }}</span>
+      </div>
+      <div class="point-amount">{{ l.worth|money }}</div>
+      {% if l.link %}<div class="point-action no-print">
+        <a class="btn btn-sm" href="{{ l.link }}">{{ l.link_label }}</a></div>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{# ---- the curve --------------------------------------------------------- #}
+{% if chart %}
+<div class="card">
+  <div class="card-head">
+    <h2>The balance from here</h2>
+    <span class="muted small">
+      <span class="swatch swatch-in"></span> in
+      <span class="swatch swatch-out"></span> out
+      <span class="swatch swatch-bal"></span> balance
+    </span>
+  </div>
+  <div class="card-body">
+    <div class="chart-wrap">{{ chart|safe }}</div>
+    <div class="chart-labels">{% for b in weeks %}<span>{{ b.label }}</span>{% endfor %}</div>
+  </div>
+</div>
+{% endif %}
+
+{# ---- everything on it -------------------------------------------------- #}
+<div class="card">
+  <div class="card-head">
+    <h2>Everything on the timeline</h2>
+    <span class="muted small">{{ upcoming|length }} movements.</span>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Expected</th><th>What</th><th>Why that date</th>
+        <th class="num">Amount</th><th class="no-print"></th></tr></thead>
+      <tbody>
+        {% for e in upcoming %}
+        <tr>
+          <td class="nowrap">{{ e.when|dt }}</td>
+          <td>{{ e.label }}
+            {% if e.overdue_days %}<span class="badge badge-void">{{ e.overdue_days }} days overdue</span>{% endif %}
+          </td>
+          <td class="small muted">
+            {{ e.detail }}
+            {% if e.is_in and not e.certain %}<br>No payment record yet — assumed to pay on time.{% endif %}
+          </td>
+          <td class="num {{ 'pos' if e.is_in else 'neg' }}">{{ e.amount|money }}</td>
+          <td class="right no-print">
+            {% if e.link %}<a class="btn btn-sm" href="{{ e.link }}">Open</a>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="muted">Nothing is committed either way in this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>What this does not know</h2></div>
+  <div class="card-body">
+    <p class="muted small">
+      Everything above is built from commitments already in your books — invoices you
+      have raised, bills you have entered, your pay run on its usual cycle, and the
+      repeating costs you set up. The only thing estimated is <em>when</em> each
+      customer pays, and that comes from their own record in your ledger rather than
+      from any assumption.
+    </p>
+    <p class="muted small">
+      It cannot know about work you have not invoiced, a contract you have not
+      entered, a customer about to go under, or a cost you have never had before.
+      {% if t.excluded_count %}
+      It has also left out {{ t.excluded_count }} invoices worth
+      {{ t.excluded_overdue|money }} that are so far overdue that putting a date on
+      them would be fiction.
+      {% endif %}
+    </p>
+  </div>
+</div>
+{% endblock %}

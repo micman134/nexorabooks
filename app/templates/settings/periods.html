@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Periods and year end{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Period lock and year end</h1></div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Lock the books</h2></div>
+    <form class="card-body" method="post" action="/settings/periods/lock">
+      <p class="muted small">Nothing dated on or before the lock date can be posted, edited or voided.
+        Set it after each month's figures are agreed, so nobody quietly changes a closed month.</p>
+      <div class="field" style="max-width:240px">
+        <label for="ld">Locked up to and including</label>
+        <input id="ld" type="date" name="lock_date" value="{{ company.lock_date.isoformat() if company.lock_date else '' }}">
+        <div class="hint">Leave empty to remove the lock.</div>
+      </div>
+      <button class="btn btn-primary" type="submit">Save the lock date</button>
+      {% if company.lock_date %}
+      <p class="hint" style="margin-top:.75rem">Currently locked up to <strong>{{ company.lock_date|dt }}</strong>.</p>
+      {% endif %}
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Close the financial year</h2></div>
+    <form class="card-body" method="post" action="/settings/periods/close-year"
+          onsubmit="return confirm('Closing the year posts a journal that clears every income and expense account into retained earnings. Continue?')">
+      <p class="muted small">This posts one journal that brings every income and expense account to nil and
+        moves the result to <strong>3100 Retained Earnings</strong>. Your profit &amp; loss then starts fresh.</p>
+      <div class="field" style="max-width:240px">
+        <label for="ye">Year end date</label>
+        <input id="ye" type="date" name="year_end" value="{{ fy_end.isoformat() }}" required>
+      </div>
+      <div class="stat" style="margin-bottom:.75rem">
+        <div class="label">Profit for {{ fy_start|dt }} — {{ fy_end|dt }}</div>
+        <div class="value {{ 'neg' if profit < 0 }}">{{ profit|money }}</div>
+      </div>
+      <div class="check"><input type="checkbox" id="al" name="also_lock" value="1" checked>
+        <label for="al">Lock the books to the year end date at the same time</label></div>
+      <button class="btn btn-primary" type="submit">Close the year</button>
+      <p class="hint" style="margin-top:.75rem">Only do this once your accountant has finalised the year.
+        If you need to reopen it, the closing journal can be reversed like any other.</p>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Financial years</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Year</th><th>From</th><th>To</th><th>Status</th><th>Closed on</th><th>Closing journal</th></tr></thead>
+      <tbody>
+        {% for y in years %}
+        <tr>
+          <td>{{ y.name }}</td>
+          <td>{{ y.start_date|dt }}</td>
+          <td>{{ y.end_date|dt }}</td>
+          <td>{% if y.is_closed %}<span class="badge badge-paid">closed</span>{% else %}<span class="badge badge-open">open</span>{% endif %}</td>
+          <td class="small">{{ y.closed_at|dt('%d %b %Y') if y.closed_at else '—' }}</td>
+          <td>{% if y.closing_entry_id %}<a href="/journals/{{ y.closing_entry_id }}">View</a>{% else %}—{% endif %}</td>
+        </tr>
+        {% else %}<tr><td colspan="6" class="empty">No financial years recorded yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "_macros.html" import letterhead %}
+{% block title %}Statement — {{ contact.name }}{% endblock %}
+{% block content %}
+<div class="page-head no-print">
+  <h1>Statement of account</h1>
+  <div class="actions">
+    <a class="btn" href="/contacts/{{ contact.id }}">Back to {{ contact.name }}</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+    <a class="btn" href="/contacts/{{ contact.id }}/statement/pdf?start={{ start }}&amp;end={{ end }}">Download PDF</a>
+    {% if can(user, 'entry') %}
+    <a class="btn btn-primary" href="/send/statement/{{ contact.id }}?start={{ start }}&amp;end={{ end }}">Email it</a>
+    {% endif %}
+  </div>
+</div>
+
+<form class="filters no-print" method="get">
+  <div class="field"><label>From</label><input type="date" name="start" value="{{ start }}"></div>
+  <div class="field"><label>To</label><input type="date" name="end" value="{{ end }}"></div>
+  <button class="btn" type="submit">Apply</button>
+</form>
+
+<div class="doc">
+  <div class="doc-head">
+    {{ letterhead(company) }}
+    <div class="doc-title">
+      <h1>Statement</h1>
+      <div class="muted small">{{ start|dt }} — {{ end|dt }}</div>
+    </div>
+  </div>
+
+  <div class="doc-parties">
+    <div>
+      <div class="lbl">Account</div>
+      <strong>{{ contact.name }}</strong><br>
+      <span class="muted small">{{ contact.address }}{% if contact.tin %}<br>TIN: {{ contact.tin }}{% endif %}</span>
+    </div>
+    <div class="right">
+      <div class="lbl">Balance due</div>
+      <div style="font-size:1.5rem; font-weight:700">{{ closing|money }}</div>
+    </div>
+  </div>
+
+  <table class="data">
+    <thead><tr><th>Date</th><th>Journal</th><th>Description</th>
+      <th class="num">Charges</th><th class="num">Payments</th><th class="num">Balance</th></tr></thead>
+    <tbody>
+      <tr><td colspan="5"><em>Balance brought forward</em></td><td class="num strong">{{ opening|money }}</td></tr>
+      {% for entry, line, running in rows %}
+      <tr>
+        <td class="nowrap">{{ entry.date|dt }}</td>
+        <td><a href="/journals/{{ entry.id }}">{{ entry.number }}</a></td>
+        <td>{{ line.memo or entry.memo }}</td>
+        <td class="num">{{ line.debit|money if line.debit else '' }}</td>
+        <td class="num">{{ line.credit|money if line.credit else '' }}</td>
+        <td class="num">{{ running|money }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty">No movements in this period.</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot><tr><td colspan="5">Balance carried forward</td><td class="num">{{ closing|money }}</td></tr></tfoot>
+  </table>
+
+  <div class="doc-foot">
+    {{ company.invoice_footer }}
+    {% if contact.is_customer %}<br>Please quote the invoice number when making payment.{% endif %}
+  </div>
+</div>
+{% endblock %}

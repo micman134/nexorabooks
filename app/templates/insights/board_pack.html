@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% from "_macros.html" import letterhead %}
+{% block title %}Board pack{% endblock %}
+{% block content %}
+<div class="page-head no-print">
+  <div>
+    <h1>Board meeting in a box</h1>
+    <div class="muted small">
+      {{ pack.cur.start|dt }} – {{ pack.cur.end|dt }}, against {{ pack.prior.start|dt }} – {{ pack.prior.end|dt }}
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="?compare={{ compare }}&format=pdf">Download PDF</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<form class="filters no-print" method="get">
+  <div class="field">
+    <label for="compare">Period</label>
+    <select name="compare" id="compare" onchange="this.form.submit()">
+      {% for key, c, p in choices %}
+      <option value="{{ key }}" {{ 'selected' if key == compare }}>{{ c.label }} against {{ p.label|lower }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+<div class="card doc">
+  <div class="card-body">
+    {% if company %}{{ letterhead(company) }}{% endif %}
+    <h2 style="margin-top:1rem">Board pack — {{ pack.cur.start|dt }} to {{ pack.cur.end|dt }}</h2>
+    <p class="muted small">
+      Prepared from the general ledger. Every figure in this pack is a sum of posted
+      transactions and can be traced to them.
+    </p>
+  </div>
+</div>
+
+{# ---- 1. The summary ---------------------------------------------------- #}
+<div class="card pack-section">
+  <div class="card-head"><h2>1 · Where the business stands</h2></div>
+  <div class="card-body">
+    {% for line in pack.story %}<p>{{ line }}</p>{% endfor %}
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Measure</th><th class="num">This period</th><th>Against last period</th></tr></thead>
+      <tbody>
+        {% for name, value, note in pack.kpis %}
+        <tr><td>{{ name }}</td><td class="num">{{ value }}</td><td class="muted small">{{ note }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ---- 2. What moved ----------------------------------------------------- #}
+<div class="card pack-section">
+  <div class="card-head">
+    <h2>2 · What moved, and by how much</h2>
+    <span class="muted small">Ranked by effect on profit.</span>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>Account</th><th class="num">This period</th><th class="num">Last period</th>
+            <th class="num">Effect on profit</th><th class="no-print"></th></tr>
+      </thead>
+      <tbody>
+      {% for m in pack.movers %}
+        <tr>
+          <td>{{ m.label }}{% if m.subtitle %}<div class="muted small">{{ m.subtitle }}</div>{% endif %}</td>
+          <td class="num">{{ m.current|money }}</td>
+          <td class="num muted">{{ m.prior|money }}</td>
+          <td class="num {{ 'pos' if m.profit_effect > 0 else 'neg' }}">{{ m.profit_effect|money }}</td>
+          <td class="num no-print">
+            <a class="btn btn-sm" href="/insights/why?compare={{ compare }}&p={{ m.section }}&p={{ m.key }}">Why?</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="muted">Nothing moved between the two periods.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ---- 3. The statements ------------------------------------------------- #}
+<div class="card pack-section">
+  <div class="card-head"><h2>3 · Profit and loss</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Account</th><th class="num">This period</th><th class="num">Last period</th></tr></thead>
+      <tbody>
+        {% for sec in [pack.pl.revenue, pack.pl.cogs, pack.pl.expenses, pack.pl.other_income, pack.pl.tax] %}
+          {% if sec.rows %}
+          <tr class="section"><td colspan="3">{{ sec.title }}</td></tr>
+          {% for acc, v, pv in sec.rows %}
+          <tr><td class="indent">{{ acc.name }}</td><td class="num">{{ v|money }}</td>
+              <td class="num muted">{{ pv|money }}</td></tr>
+          {% endfor %}
+          <tr class="total"><td>{{ sec.title }}</td><td class="num">{{ sec.total|money }}</td>
+              <td class="num muted">{{ sec.total_prior|money }}</td></tr>
+          {% endif %}
+        {% endfor %}
+        <tr class="grand"><td>Net profit</td>
+            <td class="num {{ 'neg' if pack.pl.net_profit < 0 }}">{{ pack.pl.net_profit|money }}</td>
+            <td class="num muted">{{ pack.pl.net_profit_prior|money }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card pack-section">
+  <div class="card-head"><h2>4 · Balance sheet at {{ pack.bs.as_of|dt }}</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <tbody>
+        {% for sec in [pack.bs.current_assets, pack.bs.fixed_assets, pack.bs.current_liabilities,
+                       pack.bs.long_term_liabilities, pack.bs.equity] %}
+          {% if sec.rows %}
+          <tr class="section"><td colspan="2">{{ sec.title }}</td></tr>
+          {% for acc, v in sec.rows %}
+          <tr><td class="indent">{{ acc.name }}</td><td class="num">{{ v|money }}</td></tr>
+          {% endfor %}
+          <tr class="total"><td>{{ sec.title }}</td><td class="num">{{ sec.total|money }}</td></tr>
+          {% endif %}
+        {% endfor %}
+        <tr><td class="indent">Retained earnings brought forward</td>
+            <td class="num">{{ pack.bs.retained_brought_forward|money }}</td></tr>
+        <tr><td class="indent">Profit for the year so far</td>
+            <td class="num">{{ pack.bs.current_earnings|money }}</td></tr>
+        <tr class="grand"><td>Total assets</td><td class="num">{{ pack.bs.total_assets|money }}</td></tr>
+        <tr class="grand"><td>Liabilities and equity</td>
+            <td class="num">{{ (pack.bs.total_liabilities + pack.bs.total_equity)|money }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+  {% if not pack.bs.balances_ok %}
+    <div class="alert alert-danger" style="margin:1rem">
+      The balance sheet is out by {{ pack.bs.difference|money }}. Do not circulate this pack
+      until that is resolved.
+    </div>
+  {% endif %}
+</div>
+
+<div class="card pack-section">
+  <div class="card-head"><h2>5 · Cash flow</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <tbody>
+        <tr><td>Cash at the start</td><td class="num">{{ pack.cf.opening_cash|money }}</td></tr>
+        {% for title, rows, total in [('Operating', pack.cf.operating, pack.cf.operating_total),
+                                      ('Investing', pack.cf.investing, pack.cf.investing_total),
+                                      ('Financing', pack.cf.financing, pack.cf.financing_total)] %}
+          {% if rows %}
+          <tr class="section"><td colspan="2">{{ title }}</td></tr>
+          {% for label, amount in rows %}
+          <tr><td class="indent">{{ label }}</td><td class="num">{{ amount|money }}</td></tr>
+          {% endfor %}
+          <tr class="total"><td>{{ title }}</td><td class="num">{{ total|money }}</td></tr>
+          {% endif %}
+        {% endfor %}
+        <tr class="grand"><td>Cash at the end</td><td class="num">{{ pack.cf.closing_cash|money }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ---- 6. Budget --------------------------------------------------------- #}
+{% if pack.budget %}
+<div class="card pack-section">
+  <div class="card-head">
+    <h2>6 · Against the plan</h2>
+    <span class="muted small">{{ pack.budget_name }}</span>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Account</th><th class="num">Budget</th><th class="num">Actual</th><th class="num">Difference</th></tr></thead>
+      <tbody>
+        {% for sec in pack.budget.sections %}
+          {% if sec.rows %}
+          <tr class="section"><td colspan="4">{{ sec.title }}</td></tr>
+          {% for row in sec.rows %}
+          <tr>
+            <td class="indent">{{ row.account.name }}</td>
+            <td class="num muted">{{ row.budget|money }}</td>
+            <td class="num">{{ row.actual|money }}</td>
+            <td class="num {{ 'pos' if row.is_favourable else 'neg' }}">{{ row.variance|money }}</td>
+          </tr>
+          {% endfor %}
+          {% endif %}
+        {% endfor %}
+        <tr class="grand"><td>Profit against plan</td>
+            <td class="num muted">{{ pack.budget.budget_profit|money }}</td>
+            <td class="num">{{ pack.budget.actual_profit|money }}</td>
+            <td class="num {{ 'neg' if pack.budget.profit_variance < 0 else 'pos' }}">{{ pack.budget.profit_variance|money }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ---- 7. Risks ---------------------------------------------------------- #}
+<div class="card pack-section">
+  <div class="card-head">
+    <h2>{{ '7' if pack.budget else '6' }} · What to raise</h2>
+    <span class="muted small">Conditions found in the books at {{ pack.cur.end|dt }}.</span>
+  </div>
+  {% if pack.risks %}
+  <ul class="points">
+    {% for p in pack.risks %}
+    <li class="point-{{ p.kind }}">
+      <span class="point-mark" aria-hidden="true"></span>
+      <div class="point-body">
+        <strong>{{ p.title }}</strong>
+        {% if p.detail %}<span class="muted small">{{ p.detail }}</span>{% endif %}
+      </div>
+      {% if p.amount %}<div class="point-amount {{ 'neg' if p.amount < 0 }}">{{ p.amount|money }}</div>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="card-body muted">Nothing was flagged for this period.</div>
+  {% endif %}
+</div>
+
+{# ---- 8. Questions ------------------------------------------------------ #}
+<div class="card pack-section">
+  <div class="card-head">
+    <h2>{{ '8' if pack.budget else '7' }} · Questions you will be asked</h2>
+    <span class="muted small">With the answers already worked out.</span>
+  </div>
+  <div class="card-body">
+    {% for q in pack.questions %}
+    <p><strong>{{ q.question }}</strong><br>
+      {{ q.answer }}
+      {% if q.link %}<a class="no-print small" href="{{ q.link }}">Show me</a>{% endif %}
+    </p>
+    {% else %}
+    <p class="muted">There is not enough in the books yet to anticipate anything useful.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

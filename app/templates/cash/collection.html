@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}{{ contact.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ contact.name }}</h1>
+    <div class="muted small">
+      {% if contact.email %}{{ contact.email }}{% endif %}
+      {% if contact.phone %} · {{ contact.phone }}{% endif %}
+    </div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/contacts/{{ contact.id }}">Customer record</a>
+    <a class="btn" href="/cash/collections">Back to the list</a>
+  </div>
+</div>
+
+{% if not owing %}
+<div class="card"><div class="empty">
+  <p><strong>{{ contact.name }} does not owe you anything.</strong></p>
+  <p class="muted">Nothing of theirs is outstanding at {{ on|dt }}.</p>
+</div></div>
+{% else %}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Owed</div>
+    <div class="value">{{ owing.total|money }}</div></div>
+  <div class="stat {{ 'danger' if owing.overdue }}"><div class="label">Past its due date</div>
+    <div class="value {{ 'neg' if owing.overdue }}">{{ owing.overdue|money if owing.overdue else '—' }}</div>
+    <div class="sub">{{ (owing.oldest_days ~ ' days at the oldest') if owing.oldest_days else 'nothing overdue' }}</div></div>
+  <div class="stat"><div class="label">Worth to you</div>
+    <div class="value">{{ owing.worth|money }}</div>
+    <div class="sub">business this year</div></div>
+  <div class="stat"><div class="label">How they pay</div>
+    <div class="value" style="font-size:1rem">{{ owing.approach_label }}</div>
+    <div class="sub">{{ owing.history }}</div></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Why that approach</h2></div>
+  <div class="card-body">
+    {% for reason in owing.reasons %}<p>{{ reason }}</p>{% endfor %}
+    {% if owing.habit and owing.habit.has_record %}
+    <p class="muted small">
+      Measured from {{ owing.habit.settled }} settled invoices: paid on time
+      {{ owing.habit.on_time }} times, typically {{ owing.habit.median_lag }} days after
+      the due date, worst {{ owing.habit.worst_lag }} days.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>What is outstanding</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Invoice</th><th>Raised</th><th>Due</th><th>Late by</th>
+        <th class="num">Outstanding</th><th class="no-print"></th></tr></thead>
+      <tbody>
+        {% for doc, late, amount in owing.invoices %}
+        <tr>
+          <td class="mono">{{ doc.number }}</td>
+          <td class="nowrap">{{ doc.date|dt }}</td>
+          <td class="nowrap">{{ (doc.due_date or doc.date)|dt }}</td>
+          <td class="{{ 'neg' if late > 0 }}">{{ (late ~ ' days') if late > 0 else '—' }}</td>
+          <td class="num">{{ amount|money }}</td>
+          <td class="right no-print">
+            <a class="btn btn-sm" href="/sales/invoices/{{ doc.id }}">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ---- the draft --------------------------------------------------------- #}
+<div class="card">
+  <div class="card-head">
+    <h2>Something to send</h2>
+    <span class="muted small">A starting point in your words — edit it before it goes.</span>
+  </div>
+  <div class="card-body">
+    <div class="field"><label>To</label>
+      <input value="{{ message.to or 'no email address on file' }}" readonly></div>
+    <div class="field"><label>Subject</label>
+      <input id="subject" value="{{ message.subject }}"></div>
+    <div class="field"><label>Message</label>
+      <textarea id="body" rows="16">{{ message.body }}</textarea></div>
+    <button class="btn no-print" type="button" onclick="copyDraft()">Copy it</button>
+    {% if contact.email %}
+    <a class="btn btn-primary no-print"
+       href="mailto:{{ contact.email }}?subject={{ message.subject|urlencode }}">Open in your email</a>
+    {% endif %}
+    <div class="hint">Nothing is sent by the software. This is yours to send.</div>
+  </div>
+</div>
+
+{# ---- is a discount worth it? ------------------------------------------- #}
+<div class="card">
+  <div class="card-head">
+    <h2>Would a discount for early payment be worth it?</h2>
+  </div>
+  <form class="card-body" method="get">
+    <div class="filters">
+      <div class="field"><label for="offer">Discount offered (%)</label>
+        <input id="offer" name="offer" value="{{ offer or '2' }}"></div>
+      <div class="field"><label for="sooner">To be paid this many days sooner</label>
+        <input id="sooner" name="sooner" value="{{ sooner }}"></div>
+      <div class="field"><label for="borrowing">What borrowing costs you (% a year)</label>
+        <input id="borrowing" name="borrowing" value="{{ borrowing }}"></div>
+      <button class="btn btn-primary" type="submit">Work it out</button>
+    </div>
+    {% if check %}
+    <div class="alert {{ 'alert-success' if check.worth_it else 'alert-warning' }}"
+         style="margin-top:1rem">
+      {{ check.verdict }}
+      {% if check.cost %}<br>It would cost you {{ check.cost|money }} on this balance.{% endif %}
+    </div>
+    {% endif %}
+    <p class="hint">
+      The comparison people get wrong: 2% to be paid 30 days sooner is not 2% a year,
+      it is about 24% a year. Set beside what borrowing actually costs you, the answer
+      is usually clear — and often the opposite of what it looks like.
+    </p>
+  </form>
+</div>
+{% endif %}
+
+<script>
+function copyDraft() {
+  var text = document.getElementById('subject').value + "\n\n"
+           + document.getElementById('body').value;
+  navigator.clipboard.writeText(text);
+}
+</script>
+{% endblock %}

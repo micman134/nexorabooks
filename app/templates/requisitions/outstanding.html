@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% from "_macros.html" import letterhead %}
+{% block title %}Money out with staff{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Money out with staff</h1>
+    <div class="muted small">Requisitions paid and not yet retired — cost already in the
+      accounts, receipts not yet seen.</div>
+  </div>
+  <div class="actions no-print">
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+    <a class="btn" href="/requisitions">All requisitions</a>
+  </div>
+</div>
+
+<div class="print-only">{{ letterhead(company) }}</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat {{ 'warn' if total else 'accent' }}">
+    <div class="label">Not accounted for</div>
+    <div class="value">{{ total|money }}</div>
+    <div class="sub">{{ items|length }} requisition{{ 's' if items|length != 1 }}</div></div>
+  <div class="stat"><div class="label">People holding money</div>
+    <div class="value">{{ rows|length }}</div></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>By person</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Who</th><th>Department</th><th class="num">Requisitions</th>
+        <th class="num">Amount</th></tr></thead>
+      <tbody>
+        {% for person, count, amount in rows %}
+        <tr>
+          <td><b>{{ person.display_name }}</b>
+            {% if person.job_title %}<div class="muted small">{{ person.job_title }}</div>{% endif %}</td>
+          <td class="small">{{ person.department or '—' }}</td>
+          <td class="num">{{ count }}</td>
+          <td class="num">{{ amount|money }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty">Everything paid out has been retired. Good.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if rows %}
+      <tfoot><tr><th colspan="3">Total</th><th class="num">{{ total|money }}</th></tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+{% if items %}
+<div class="card">
+  <div class="card-head"><h3>The requisitions themselves</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Number</th><th>Who</th><th>What for</th><th>Paid</th>
+        <th class="num">Days ago</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        {% for r in items %}
+        <tr>
+          <td class="mono"><a href="/requisitions/{{ r.id }}">{{ r.number }}</a></td>
+          <td class="small">{{ r.raised_by.display_name }}</td>
+          <td>{{ r.purpose|truncate(60) }}</td>
+          <td class="small">{{ r.paid_on|dt }}</td>
+          <td class="num {{ 'neg' if r.paid_on and (today() - r.paid_on).days > 30 }}">
+            {{ (today() - r.paid_on).days if r.paid_on else '—' }}</td>
+          <td class="num">{{ r.paid_amount|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<p class="muted small">
+  Because the cost is recorded when the money leaves, anything on this list is an expense
+  sitting in the accounts with no receipt behind it. Chase the oldest first — that is what
+  an auditor will ask about.
+</p>
+{% endblock %}

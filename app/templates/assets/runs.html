@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Depreciation{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Depreciation</h1>
+    <div class="muted small">One run a month. Each run posts a single journal entry across every asset.</div>
+  </div>
+  <div class="actions"><a class="btn" href="/assets">Asset register</a>
+    <a class="btn" href="/assets/schedule">Asset schedule</a></div>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Next month to run</div>
+    <div class="value" style="font-size:1.2rem">{{ suggested_label }}</div>
+    <div class="sub">{{ waiting|money }} waiting to be charged</div></div>
+  <div class="stat"><div class="label">Charged this year</div>
+    <div class="value">{{ charged_this_year|money }}</div></div>
+  <div class="stat"><div class="label">Runs posted</div>
+    <div class="value">{{ runs | selectattr('status', 'equalto', 'POSTED') | list | length }}</div></div>
+</div>
+
+{% if can(user, 'journal') %}
+<div class="card no-print">
+  <div class="card-head"><h3>Run a month</h3></div>
+  <form class="card-body inline-form" method="post" action="/assets/depreciation/run">
+    <div class="field" style="margin:0"><label for="pd">Month</label>
+      <select id="pd" name="period">
+        {% set months = ['January','February','March','April','May','June','July',
+                         'August','September','October','November','December'] %}
+        {% for offset in range(0, 14) %}
+        {% set total = ((suggested // 100) * 12 + (suggested % 100) - 1) - offset %}
+        {% set py = total // 12 %}{% set pm = total % 12 + 1 %}
+        <option value="{{ py * 100 + pm }}" {{ 'selected' if offset == 0 }}>{{ months[pm - 1] }} {{ py }}</option>
+        {% endfor %}
+      </select></div>
+    <button class="btn btn-primary" type="submit">Work out the depreciation</button>
+    <span class="muted small">Nothing is posted yet — you see the figures first and approve them.</span>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><h3>Runs</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Number</th><th>Month</th><th>Posted on</th>
+        <th class="num">Assets</th><th class="num">Charge</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td class="mono"><a href="/assets/depreciation/{{ r.id }}">{{ r.number }}</a></td>
+          <td>{{ r.period_label }}</td>
+          <td class="small muted">{{ r.date|dt }}</td>
+          <td class="num">{{ r.asset_count }}</td>
+          <td class="num">{{ r.total|money }}</td>
+          <td><span class="badge {{ r.status|status_class }}">{{ r.status|lower }}</span></td>
+          <td class="right"><a class="btn btn-sm" href="/assets/depreciation/{{ r.id }}">Open</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">
+          No depreciation has been run yet.
+          {% if can(user, 'journal') %}Choose a month above to start.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="muted small">
+  Depreciation is charged for whole months: an asset put to work on any day of a month is charged for
+  that whole month. If you miss a month, the next run catches up — it charges every month owed since
+  the asset was last depreciated.
+</p>
+{% endblock %}

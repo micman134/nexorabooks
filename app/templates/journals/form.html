@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}New journal entry{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>New journal entry</h1>
+    <div class="muted small">Debits must equal credits. The entry will not post otherwise.</div>
+  </div>
+</div>
+
+<form method="post" action="/journals/save">
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field"><label for="d">Date</label>
+          <input id="d" type="date" name="date" value="{{ today.isoformat() }}" required autofocus></div>
+        <div class="field"><label for="r">Reference</label><input id="r" name="reference"></div>
+        <div class="field" style="flex:2"><label for="m">Narration *</label>
+          <input id="m" name="memo" required placeholder="Why is this entry being made?"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Lines</h2>
+      <div class="actions"><button class="btn btn-sm" type="button" id="jadd">Add a line</button></div></div>
+    <div class="card-body">
+      <div class="table-wrap">
+        <table class="lines" id="jtable">
+          <thead><tr><th style="width:26%">Account</th><th style="width:24%">Narration</th>
+            <th style="width:16%">Party</th><th style="width:10%">VAT code</th>
+            <th style="width:12%" class="num">Debit</th><th style="width:12%" class="num">Credit</th></tr></thead>
+          <tbody id="jbody">
+            {% for i in rows %}
+            <tr class="jrow">
+              <td><select name="line_account">
+                <option value="">—</option>
+                {% for a in accounts %}<option value="{{ a.id }}">{{ a.code }} — {{ a.name }}</option>{% endfor %}
+              </select></td>
+              <td><input name="line_memo"></td>
+              <td><select name="line_contact">
+                <option value="">—</option>
+                {% for c in contacts %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+              </select></td>
+              <td><select name="line_tax">
+                <option value="">—</option>
+                {% for t in vat_codes %}<option value="{{ t.id }}">{{ t.code }}</option>{% endfor %}
+              </select></td>
+              <td><input class="num jdr" name="line_debit" placeholder="0.00"></td>
+              <td><input class="num jcr" name="line_credit" placeholder="0.00"></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr><td colspan="4" class="right strong">Totals</td>
+              <td class="num strong" id="jtd">—</td><td class="num strong" id="jtc">—</td></tr>
+            <tr><td colspan="4" class="right strong">Difference</td>
+              <td colspan="2" class="num strong" id="jdiff">—</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit" id="jsubmit">Post the entry</button>
+    <a class="btn" href="/journals">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var SYM = document.body.getAttribute('data-symbol') || '₦';
+  function num(v) { var n = parseFloat(String(v || '0').replace(/,/g, '')); return isNaN(n) ? 0 : n; }
+  function fmt(n) { return SYM + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function calc() {
+    var dr = 0, cr = 0;
+    document.querySelectorAll('.jdr').forEach(function (i) { dr += num(i.value); });
+    document.querySelectorAll('.jcr').forEach(function (i) { cr += num(i.value); });
+    var diff = Math.round((dr - cr) * 100) / 100;
+    document.getElementById('jtd').textContent = fmt(dr);
+    document.getElementById('jtc').textContent = fmt(cr);
+    var el = document.getElementById('jdiff');
+    el.textContent = diff === 0 ? 'Balanced' : fmt(diff) + (diff > 0 ? ' more debit' : ' more credit');
+    el.style.color = diff === 0 ? 'var(--green)' : 'var(--danger)';
+    document.getElementById('jsubmit').disabled = (diff !== 0 || dr === 0);
+  }
+  function bind(scope) {
+    scope.querySelectorAll('.jdr, .jcr').forEach(function (i) {
+      i.addEventListener('input', function () {
+        // Typing in one column clears the other on that row
+        var row = i.closest('tr');
+        var other = i.classList.contains('jdr') ? row.querySelector('.jcr') : row.querySelector('.jdr');
+        if (num(i.value) && other) other.value = '';
+        calc();
+      });
+    });
+  }
+  bind(document);
+  document.getElementById('jadd').addEventListener('click', function (e) {
+    e.preventDefault();
+    var body = document.getElementById('jbody');
+    var clone = body.querySelector('.jrow').cloneNode(true);
+    clone.querySelectorAll('input').forEach(function (i) { i.value = ''; });
+    clone.querySelectorAll('select').forEach(function (s) { s.selectedIndex = 0; });
+    body.appendChild(clone);
+    bind(clone);
+  });
+  calc();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block title %}Company details{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ 'Set up your company' if first_run else 'Company details' }}</h1>
+</div>
+
+{% if first_run %}
+<div class="alert alert-info">
+  Welcome. Fill this in once and it appears on every invoice, receipt and report.
+  You can change any of it later.
+</div>
+{% endif %}
+
+<form method="post" action="/settings/company" style="max-width:900px">
+  <fieldset>
+    <legend>Identity</legend>
+    <div class="field-row">
+      <div class="field"><label for="n">Business name *</label>
+        <input id="n" name="name" value="{{ company.name }}" required autofocus></div>
+      <div class="field"><label for="ln">Registered name (if different)</label>
+        <input id="ln" name="legal_name" value="{{ company.legal_name }}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="rc" id="lbl-rc">{{ company.reg_no_label or 'Registration number' }}</label>
+        <input id="rc" name="rc_number" value="{{ company.rc_number }}"></div>
+      <div class="field"><label for="tin" id="lbl-tin">{{ company.tax_id_label or 'Tax ID' }}</label>
+        <input id="tin" name="tin" value="{{ company.tin }}"></div>
+      <div class="field"><label for="vr" id="lbl-vr">{{ company.tax_label or 'VAT' }} registration number</label>
+        <input id="vr" name="vat_reg_no" value="{{ company.vat_reg_no }}"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Where to find you</legend>
+    <div class="field"><label for="ad">Address</label><textarea id="ad" name="address">{{ company.address }}</textarea></div>
+    <div class="field-row">
+      <div class="field"><label for="ci">City</label><input id="ci" name="city" value="{{ company.city }}"></div>
+      <div class="field"><label for="st">State</label><input id="st" name="state" value="{{ company.state }}"></div>
+      <div class="field"><label for="ph">Phone</label><input id="ph" name="phone" value="{{ company.phone }}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="em">Email</label><input id="em" type="email" name="email" value="{{ company.email }}"></div>
+      <div class="field"><label for="ws">Website</label><input id="ws" name="website" value="{{ company.website }}"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Country and currency</legend>
+    <div class="field-row">
+      <div class="field"><label for="ctry">Country</label>
+        <select id="ctry" name="country_code">
+          {% for c in countries %}
+          <option value="{{ c.code }}" {{ 'selected' if company.country_code == c.code }}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="hint">Sets the wording below. Everything stays editable.</div></div>
+      <div class="field"><label for="cc">Currency</label>
+        <select id="cc" name="currency_code" {{ 'disabled' if currency_locked }}>
+          {% for c in currencies %}
+          <option value="{{ c.code }}" {{ 'selected' if company.currency_code == c.code }}>{{ c.label }}</option>
+          {% endfor %}
+        </select>
+        {% if currency_locked %}
+        <input type="hidden" name="currency_code" value="{{ company.currency_code }}">
+        {% endif %}
+      </div>
+      <div class="field"><label for="cs">Symbol</label>
+        <input id="cs" name="currency_symbol" value="{{ company.currency_symbol }}"
+               {{ 'readonly' if currency_locked }} style="max-width:120px"></div>
+    </div>
+
+    {% if currency_locked %}
+    <div class="alert alert-info">
+      <strong>{{ company.currency_code }} is now fixed for these books.</strong>
+      Every figure already posted is stored as a whole number of
+      {{ company.currency_code }}, so changing the currency here would not convert
+      anything — it would only relabel it, and your accounts would be wrong by
+      whatever the exchange rate is. To keep books in another currency, create a
+      second company under <a href="/companies">Companies</a>.
+    </div>
+    {% else %}
+    <div class="hint">
+      Choose carefully: once you post your first transaction the currency is fixed,
+      because every stored figure is a count of its smallest unit.
+      <strong>Example:</strong> <span id="cur-example">{{ 1234567|money }}</span>
+    </div>
+    {% endif %}
+
+    <div class="field-row">
+      <div class="field"><label for="fy">Financial year starts in</label>
+        <select id="fy" name="fiscal_year_start_month">
+          {% for m in range(1, 13) %}
+          <option value="{{ m }}" {{ 'selected' if company.fiscal_year_start_month == m }}>
+            {{ ['January','February','March','April','May','June','July','August','September','October','November','December'][m-1] }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field"><label for="th">Everyone's colours, unless they choose</label>
+        <select id="th" name="theme">
+          {% for t in themes.THEMES %}
+          <option value="{{ t.key }}" {{ 'selected' if company.theme == t.key }}>
+            {{ t.name }}{{ ' — dark' if t.is_dark }}</option>
+          {% endfor %}
+        </select>
+        <div class="hint">Each person can pick their own under My account.</div></div>
+      <div class="field"><label for="df">Dates are written</label>
+        <select id="df" name="date_format">
+          {% for f, example in date_formats %}
+          <option value="{{ f }}" {{ 'selected' if company.date_format == f }}>{{ example }}</option>
+          {% endfor %}
+        </select></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tax</legend>
+    <div class="field-row">
+      <div class="field"><label for="tl">What your country calls it</label>
+        <input id="tl" name="tax_label" value="{{ company.tax_label or 'VAT' }}" style="max-width:200px">
+        <div class="hint">VAT, GST, IVA, Sales Tax — whatever appears on your invoices.</div></div>
+      <div class="field"><label for="vrate" id="lbl-rate">Standard {{ company.tax_label or 'VAT' }} rate (%)</label>
+        <input id="vrate" class="num" name="vat_rate" value="{{ company.vat_rate }}">
+        <div class="hint" id="hint-rate">
+          Check this against your own tax authority before you invoice anybody —
+          rates change with budgets and this is only a starting point.
+        </div></div>
+      <div class="field"><label for="ta">Tax authority</label>
+        <input id="ta" name="tax_authority" value="{{ company.tax_authority or 'the tax authority' }}">
+        <div class="hint">Named on tax reports and remittance schedules.</div></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="til">Tax ID is called</label>
+        <input id="til" name="tax_id_label" value="{{ company.tax_id_label or 'Tax ID' }}"></div>
+      <div class="field"><label for="rnl">Registration number is called</label>
+        <input id="rnl" name="reg_no_label" value="{{ company.reg_no_label or 'Registration number' }}"></div>
+      {% if company.country_code == 'NG' %}
+      <div class="field"><label for="tb">Annual turnover</label>
+        <select id="tb" name="annual_turnover_band">
+          <option value="UNDER_50M" {{ 'selected' if company.annual_turnover_band == 'UNDER_50M' }}>₦50 million or less</option>
+          <option value="ABOVE_50M" {{ 'selected' if company.annual_turnover_band == 'ABOVE_50M' }}>Above ₦50 million</option>
+        </select>
+        <div class="hint">Decides the small-company exemptions under the Nigeria Tax Act.</div></div>
+      {% else %}
+      <input type="hidden" name="annual_turnover_band" value="{{ company.annual_turnover_band }}">
+      {% endif %}
+    </div>
+    <div class="check"><input type="checkbox" id="vreg" name="is_vat_registered" value="1" {{ 'checked' if company.is_vat_registered }}>
+      <label for="vreg">We are registered for <span id="lbl-vreg">{{ company.tax_label or 'VAT' }}</span> and charge it on our sales</label></div>
+    <div class="hint">If this is off, tax you pay on purchases is expensed instead of reclaimed.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Invoicing</legend>
+    <div class="field"><label for="pt">Default payment terms (days)</label>
+      <input id="pt" type="number" name="default_payment_terms_days" value="{{ company.default_payment_terms_days }}" style="max-width:160px"></div>
+    <div class="field"><label for="it">Standard terms printed on invoices</label>
+      <textarea id="it" name="invoice_terms">{{ company.invoice_terms }}</textarea></div>
+    <div class="field"><label for="if">Invoice footer</label>
+      <textarea id="if" name="invoice_footer">{{ company.invoice_footer }}</textarea>
+      <div class="hint">One line at the very bottom of every page — a thank you, or
+        your registration number.</div></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>How customers pay you</legend>
+    <p class="hint" style="margin-top:0">
+      Your bank details are printed on every invoice, under &ldquo;How to pay&rdquo;, so a
+      customer never has to write back and ask where to send the money.
+    </p>
+
+    {% if payable %}
+    <table class="data" style="margin-bottom:.8rem">
+      <tbody>
+        {% for b in payable %}
+        <tr>
+          <th style="width:40%">{{ b.bank_name }}
+            {% if b.currency_code and b.currency_code != company.currency_code %}
+            <span class="badge badge-draft">{{ b.currency_code }}</span>{% endif %}</th>
+          <td class="mono">{{ b.account_number }}
+            {% if b.account_name %}<div class="muted small">{{ b.account_name }}</div>{% endif %}</td>
+          <td class="num"><a class="btn btn-sm" href="/banking/{{ b.id }}/edit">Change</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="alert alert-warning">
+      <strong>No account is being shown on your invoices.</strong>
+      Your customers are being told what they owe but not where to send it.
+      {% if banks %}
+      Open one of your accounts under <a href="/banking">Banking</a>, fill in the bank
+      name and account number, and tick &ldquo;Print these details on invoices&rdquo;.
+      {% else %}
+      Add your bank account under <a href="/banking/new">Banking</a> first.
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="field"><label for="pi">A note under the bank details</label>
+      <textarea id="pi" name="payment_instructions" rows="2">{{ company.payment_instructions }}</textarea>
+      <div class="hint">Printed straight after the account. The usual thing to say here
+        is how you want the payment referenced, because that is what goes wrong most
+        often when somebody pays you.</div></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Requisitions</legend>
+    <div class="field"><label for="rl">A director must also approve above</label>
+      <input id="rl" class="num" name="requisition_limit"
+             value="{{ company.requisition_limit|amount if company.requisition_limit else '' }}"
+             placeholder="0.00" style="max-width:220px">
+      <div class="hint">Leave it empty and the line manager alone is enough, whatever the
+        amount. Set a figure and anything above it goes to a director after the manager,
+        before finance sees it. Mark the director under Settings › Users.</div></div>
+  </fieldset>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">{{ 'Save and get started' if first_run else 'Save' }}</button>
+    {% if not first_run %}<a class="btn" href="/settings">Cancel</a>{% endif %}
+  </div>
+</form>
+
+<div class="card" style="max-width:900px; margin-top:1.5rem">
+  <div class="card-head"><h2>Your logo</h2></div>
+  <div class="card-body">
+    <p class="muted small">
+      Appears at the top of every invoice, quotation, credit note, receipt, customer
+      statement, purchase document and payslip — and in the corner of the screen.
+    </p>
+
+    {% if company.logo_file %}
+    <div style="display:flex; gap:1.5rem; align-items:flex-start; flex-wrap:wrap">
+      <div style="border:1px solid var(--line); border-radius:var(--radius); padding:1rem; background:#fff">
+        <img src="/company-logo" alt="{{ company.name }}" style="max-height:90px; max-width:280px; display:block">
+      </div>
+      <div>
+        <p class="small"><strong>This is what customers will see.</strong></p>
+        <form method="post" action="/settings/logo/remove"
+              onsubmit="return confirm('Remove the logo from all documents?')">
+          <button class="btn btn-danger btn-sm" type="submit">Remove logo</button>
+        </form>
+      </div>
+    </div>
+    <hr style="border:none; border-top:1px solid var(--line); margin:1rem 0">
+    {% else %}
+    <div class="alert alert-info">
+      No logo yet. Your documents currently show your company name and details as text.
+    </div>
+    {% endif %}
+
+    <form method="post" action="/settings/logo" enctype="multipart/form-data">
+      <div class="field" style="max-width:460px">
+        <label for="logo">{{ 'Replace it with' if company.logo_file else 'Upload a logo' }}</label>
+        <input id="logo" type="file" name="logo" accept="image/png,image/jpeg,image/gif,image/webp" required>
+        <div class="hint">
+          PNG, JPG, GIF or WebP, up to 2 MB. A PNG with a transparent background at about
+          600 pixels wide looks best — it prints cleanly and does not show a white box.
+        </div>
+      </div>
+      <button class="btn btn-primary" type="submit">Upload</button>
+    </form>
+  </div>
+</div>
+
+<script>
+// Choosing a country fills in the wording, the currency and the date style.
+// Nothing here is binding — every field it touches can still be typed over,
+// and the worked example updates as you go so you can see what your invoices
+// will actually say before you commit to it.
+(function () {
+  var table = {{ country_table|tojson }};
+  var byCode = {};
+  table.forEach(function (c) { byCode[c.code] = c; });
+
+  function el(id) { return document.getElementById(id); }
+  function put(id, value) {
+    var f = el(id);
+    if (f && !f.readOnly && !f.disabled && value) { f.value = value; }
+  }
+  function text(id, value) { var f = el(id); if (f) { f.textContent = value; } }
+
+  function example() {
+    var box = el('cur-example');
+    if (!box) { return; }
+    var code = (el('cc') || {}).value || '';
+    var c = null;
+    table.forEach(function (row) { if (row.currency_code === code) { c = row; } });
+    if (!c) { return; }
+    var symbol = (el('cs') || {}).value || c.currency_symbol;
+    var minor = 1234567;
+    var scale = Math.pow(10, c.currency_decimals);
+    var whole = Math.floor(minor / scale);
+    var body = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, c.currency_thousands);
+    if (c.currency_decimals) {
+      var frac = String(minor % scale);
+      while (frac.length < c.currency_decimals) { frac = '0' + frac; }
+      body += c.currency_point + frac;
+    }
+    text('cur-example', c.currency_symbol_after ? body + ' ' + symbol : symbol + body);
+  }
+
+  function relabel() {
+    var tax = ((el('tl') || {}).value || 'VAT').trim() || 'VAT';
+    text('lbl-vreg', tax);
+    text('lbl-rate', 'Standard ' + tax + ' rate (%)');
+    text('lbl-vr', tax + ' registration number');
+    text('lbl-tin', ((el('til') || {}).value || 'Tax ID'));
+    text('lbl-rc', ((el('rnl') || {}).value || 'Registration number'));
+  }
+
+  var country = el('ctry');
+  if (country) {
+    country.addEventListener('change', function () {
+      var c = byCode[country.value];
+      if (!c) { return; }
+      var code = el('cc');
+      if (code && !code.disabled) { code.value = c.currency_code; put('cs', c.currency_symbol); }
+      put('tl', c.tax_label);
+      put('ta', c.tax_authority);
+      put('til', c.tax_id_label);
+      put('rnl', c.reg_no_label);
+      if (c.tax_rate) { put('vrate', c.tax_rate); }
+      var df = el('df');
+      if (df) { df.value = c.date_format; }
+      relabel();
+      example();
+    });
+  }
+  ['cc', 'cs'].forEach(function (id) {
+    var f = el(id);
+    if (f) { f.addEventListener('change', example); f.addEventListener('input', example); }
+  });
+  ['tl', 'til', 'rnl'].forEach(function (id) {
+    var f = el(id);
+    if (f) { f.addEventListener('input', relabel); }
+  });
+  relabel();
+  example();
+})();
+</script>
+{% endblock %}

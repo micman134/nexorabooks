@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Close the till{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Close {{ session.name }}</h1>
+    <div class="muted small">
+      {{ session.number }} · {{ figures.count }} sale{{ '' if figures.count == 1 else 's' }} ·
+      opened {{ session.opened_at.strftime('%d %b at %H:%M') }}
+    </div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/pos">Back to the till</a>
+  </div>
+</div>
+
+<div class="alert alert-info">
+  Count the drawer first, then type what you found. The point of this screen is
+  the difference between the two figures — so enter what is really there, even
+  when it is less than it should be. A till that comes up short every Friday is
+  something the owner needs to see, and it can only be seen if it is written
+  down.
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>What the till says</h2></div>
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          <tr><td>Opening float</td><td class="num">{{ figures.opening_float|money }}</td></tr>
+          <tr><td>Cash taken</td><td class="num">{{ figures.cash|money }}</td></tr>
+          <tr class="total"><td>Should be in the drawer</td>
+            <td class="num">{{ figures.expected_cash|money }}</td></tr>
+          {% for kind, label in [('CARD', 'Card'), ('TRANSFER', 'Transfer')] %}
+          {% if figures.by_kind.get(kind) %}
+          <tr><td class="muted">{{ label }} — went to the bank, not the drawer</td>
+            <td class="num muted">{{ figures.by_kind.get(kind)|money }}</td></tr>
+          {% endif %}
+          {% endfor %}
+          <tr class="grand"><td>Sold this session</td>
+            <td class="num">{{ figures.sales|money }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Count the drawer</h2></div>
+    <div class="card-body">
+      <table class="data count-grid">
+        <thead><tr><th>Note</th><th class="num">How many</th><th class="num">Comes to</th></tr></thead>
+        <tbody>
+          {% for note in notes %}
+          <tr>
+            <td>{{ note }}</td>
+            <td class="num"><input class="num" type="number" min="0" step="1"
+                                   data-note="{{ note }}" value=""></td>
+            <td class="num" data-line="{{ note }}">—</td>
+          </tr>
+          {% endfor %}
+          <tr>
+            <td>Coins and anything else</td>
+            <td class="num"><input class="num" type="number" min="0" step="any"
+                                   id="odds" value=""></td>
+            <td class="num" data-line="odds">—</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted small">Counting here is optional — it just fills the box
+        below in. If you would rather count on paper, type the total straight in.</p>
+    </div>
+  </div>
+</div>
+
+<form method="post" action="/pos/close" class="card" style="margin-top:1.5rem">
+  <div class="card-body">
+    <div class="grid grid-2">
+      <div class="field">
+        <label for="counted">What was actually in the drawer</label>
+        <input id="counted" name="counted" inputmode="decimal" value="0" required>
+        <div class="muted small">Expected: {{ figures.expected_cash|money }}</div>
+      </div>
+      <div class="field">
+        <label>Difference</label>
+        <div id="difference" class="till-difference">—</div>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="field">
+        <label for="banked">Sent to the bank (optional)</label>
+        <input id="banked" name="banked" inputmode="decimal" value="0">
+      </div>
+      <div class="field">
+        <label for="bank_account_id">Paid into</label>
+        <select id="bank_account_id" name="bank_account_id">
+          {% for b in banks %}
+          <option value="{{ b.id }}" {{ 'selected' if b.is_default }}>{{ b.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="notes">Anything worth saying about this session</label>
+      <textarea id="notes" name="notes" rows="2"
+                placeholder="e.g. a customer was given change twice by mistake"></textarea>
+    </div>
+  </div>
+  <div class="card-body" style="border-top:1px solid var(--line)">
+    <button class="btn btn-primary" type="submit">Close the till</button>
+    <a class="btn" href="/pos">Not yet</a>
+  </div>
+</form>
+
+<script>
+(function () {
+  const decimals = {{ company.currency_decimals if company else 2 }};
+  const scale = Math.pow(10, decimals);
+  const expected = {{ figures.expected_cash }};
+  const counted = document.getElementById('counted');
+  const differenceBox = document.getElementById('difference');
+
+  function fmt(minor) {
+    return (minor / scale).toLocaleString(undefined, {
+      minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+  }
+
+  function recount() {
+    let total = 0;
+    document.querySelectorAll('[data-note]').forEach((box) => {
+      const note = parseFloat(box.dataset.note);
+      const many = parseInt(box.value || '0', 10) || 0;
+      const line = Math.round(note * many * scale);
+      total += line;
+      const cell = document.querySelector('[data-line="' + box.dataset.note + '"]');
+      if (cell) cell.textContent = many ? fmt(line) : '—';
+    });
+    const odds = Math.round((parseFloat(document.getElementById('odds').value || '0') || 0) * scale);
+    total += odds;
+    const oddsCell = document.querySelector('[data-line="odds"]');
+    if (oddsCell) oddsCell.textContent = odds ? fmt(odds) : '—';
+    if (total) counted.value = (total / scale).toFixed(decimals);
+    difference();
+  }
+
+  function difference() {
+    const value = Math.round((parseFloat(counted.value || '0') || 0) * scale);
+    const gap = value - expected;
+    differenceBox.textContent = gap === 0 ? 'It balances exactly' :
+      (gap < 0 ? fmt(-gap) + ' short' : fmt(gap) + ' over');
+    differenceBox.className = 'till-difference ' +
+      (gap === 0 ? 'ok' : (gap < 0 ? 'short' : 'over'));
+  }
+
+  document.querySelectorAll('[data-note], #odds').forEach(
+    (box) => box.addEventListener('input', recount));
+  counted.addEventListener('input', difference);
+  difference();
+})();
+</script>
+{% endblock %}

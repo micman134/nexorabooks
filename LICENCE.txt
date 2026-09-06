@@ -1,0 +1,28 @@
+Nexora Books is licensed software, not free software.
+
+The terms are in LICENCE-AGREEMENT.txt in this folder, alongside REFUNDS.txt
+and PRIVACY.txt, which form part of the same agreement. In short: you buy a
+licence for one computer, any number of your staff may use it from there, your
+books are yours and stay on your own machine, and if your licence ever lapses
+you keep every figure you have ever entered and every means of getting at it.
+
+If you have not bought a licence yet, the software runs in full for 30 days
+so that you can decide with your own figures in front of you.
+
+    Tavo Networks Limited (RC 8237044)
+    Lekki, Lagos, Nigeria
+    support@tavonetworks.tech
+
+
+A NOTE ON THIS FILE'S HISTORY
+-----------------------------
+This file replaced an MIT licence, which gave the software away to anybody who
+received a copy. That MIT text used to be kept beside it as LICENSE-MIT-old.txt
+and has now been removed, because shipping the two together risked giving the
+software away by accident — which is exactly what nearly happened.
+
+Removing the file does not by itself settle the question. If a copy of this
+software was ever given to anybody while the MIT licence applied, that person
+keeps MIT rights to the version they received, and no later relicensing takes
+those rights back. If it was never distributed under MIT, there is nothing to
+settle. Whoever sells this should know which of those is true.

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Reports</h1></div>
+
+<div class="grid grid-3">
+  <div class="card">
+    <div class="card-head"><h2>Explain the figures</h2></div>
+    <div class="card-body">
+      <p><a href="/insights/brief"><strong>Today&#39;s brief</strong></a><br>
+        <span class="muted small">What needs a decision today, largest first, with the evidence behind each one.</span></p>
+      <p><a href="/insights/why"><strong>Why did that change?</strong></a><br>
+        <span class="muted small">Take any movement in profit apart, level by level, down to the transactions that caused it.</span></p>
+      <p><a href="/insights/board-pack"><strong>Board meeting in a box</strong></a><br>
+        <span class="muted small">The whole pack — statements, variances, risks and the questions you will be asked — as one PDF.</span></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Financial statements</h2></div>
+    <div class="card-body">
+      <p><a href="/reports/profit-and-loss"><strong>Profit &amp; loss</strong></a><br>
+        <span class="muted small">Revenue, cost of sales, expenses and profit, with the previous period alongside.</span></p>
+      <p><a href="/reports/balance-sheet"><strong>Balance sheet</strong></a><br>
+        <span class="muted small">What you own, what you owe and what's left, at any date.</span></p>
+      <p><a href="/reports/cash-flow"><strong>Cash flow statement</strong></a><br>
+        <span class="muted small">Where the money actually came from and went, split into operating, investing and financing.</span></p>
+      <p><a href="/reports/trial-balance"><strong>Trial balance</strong></a><br>
+        <span class="muted small">Every account with its debit or credit balance. Proof the books balance.</span></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Tax</h2></div>
+    <div class="card-body">
+      <p><a href="/reports/vat"><strong>VAT return</strong></a><br>
+        <span class="muted small">Output VAT, input VAT and what is payable. Due by the 21st of the following month.</span></p>
+      <p><a href="/reports/wht?kind=payable"><strong>Withholding tax deducted</strong></a><br>
+        <span class="muted small">Tax you withheld from suppliers and must remit to the National Revenue Service.</span></p>
+      <p><a href="/reports/wht?kind=credit"><strong>Withholding tax suffered</strong></a><br>
+        <span class="muted small">Tax your customers withheld from you — a credit against your income tax.</span></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Who owes what</h2></div>
+    <div class="card-body">
+      <p><a href="/reports/aging?kind=ar"><strong>Receivables ageing</strong></a><br>
+        <span class="muted small">Customer balances by how overdue they are.</span></p>
+      <p><a href="/reports/aging?kind=ap"><strong>Payables ageing</strong></a><br>
+        <span class="muted small">Supplier balances by how overdue they are.</span></p>
+      <p><a href="/inventory/valuation"><strong>Stock valuation</strong></a><br>
+        <span class="muted small">Quantities and value on hand, reconciled to the inventory account.</span></p>
+      <p><a href="/inventory/expiring"><strong>Stock going off</strong></a><br>
+        <span class="muted small">Batches at or near their expiry date, and what they are worth.</span></p>
+      <p><a href="/inventory/serials"><strong>Serial numbers</strong></a><br>
+        <span class="muted small">Every tracked unit — where it is, who bought it, warranty.</span></p>
+      <p><a href="/assets/schedule"><strong>Fixed asset schedule</strong></a><br>
+        <span class="muted small">Cost and depreciation by category — the note your auditor asks for.</span></p>
+      <p><a href="/budgets/variance"><strong>Budget against actual</strong></a><br>
+        <span class="muted small">How the year is going against the plan, by account and by month.</span></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Detail and audit</h2></div>
+    <div class="card-body">
+      <p><a href="/reports/general-ledger"><strong>General ledger</strong></a><br>
+        <span class="muted small">Every movement on any account, with a running balance.</span></p>
+      <p><a href="/journals"><strong>Journal listing</strong></a><br>
+        <span class="muted small">All entries, whatever created them.</span></p>
+      {% if can(user, 'admin') %}
+      <p><a href="/reports/audit-trail"><strong>Audit trail</strong></a><br>
+        <span class="muted small">Who did what, and when.</span></p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p class="muted small">Every report can be printed or saved as a PDF from your browser's print dialog.
+      Most also export to CSV for Excel — look for the Export button on the report.</p>
+  </div>
+</div>
+{% endblock %}

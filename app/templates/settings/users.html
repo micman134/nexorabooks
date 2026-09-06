@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Users and access</h1></div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Two-factor sign-in</h2>
+    {% if company.require_two_factor %}<span class="badge badge-paid">required</span>
+    {% else %}<span class="badge badge-draft">optional</span>{% endif %}
+  </div>
+  <div class="card-body">
+    {% if company.require_two_factor %}
+      <p>Everybody in this company must sign in with a code from their phone as well as
+        a password. Anyone who has not set it up yet is shown the setup screen the next
+        time they work — nobody is locked out.</p>
+      <form method="post" action="/settings/users/require-two-factor">
+        <input type="hidden" name="require_two_factor" value="0">
+        <button class="btn" type="submit">Make it optional again</button>
+      </form>
+    {% else %}
+      <p>A stolen or guessed password is currently enough to reach these books. Requiring
+        a second factor means it is not.</p>
+      <p class="muted small">
+        It works offline — an authenticator app on each person's phone, nothing sent
+        anywhere and nothing to sign up for. Turning this on does not lock anybody out:
+        it sends them to the setup screen.
+      </p>
+      <form method="post" action="/settings/users/require-two-factor">
+        <input type="hidden" name="require_two_factor" value="1">
+        <button class="btn btn-primary" type="submit">Require it for everybody</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>People with access</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Manager</th>
+        <th>Requisitions</th><th>Two-factor</th><th>Last signed in</th><th></th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td class="mono">{{ u.username }}
+            {% if not u.is_active %}<span class="badge badge-void">disabled</span>{% endif %}
+            {% if u.must_change_password %}<span class="badge badge-part">must change password</span>{% endif %}
+            {% if u.invite_outstanding %}<span class="badge badge-open">invitation sent</span>{% endif %}</td>
+          <td>{{ u.full_name or '—' }}
+            {% if u.job_title %}<div class="muted small">{{ u.job_title }}</div>{% endif %}</td>
+          <td>{{ ROLE_LABELS.get(u.role, u.role) }}
+            {% if u.is_super_admin %}<div><span class="badge badge-void">super admin</span></div>{% endif %}</td>
+          <td class="small">{{ u.manager.display_name if u.manager else '—' }}</td>
+          <td class="small">
+            {% if u.pays_requisitions %}<span class="badge badge-open">pays</span>{% endif %}
+            {% if u.approves_large_requisitions %}<span class="badge badge-open">signs large</span>{% endif %}
+            {% if u.has_bank_details %}<span class="badge badge-paid">bank on file</span>
+            {% else %}<span class="muted small">no bank details</span>{% endif %}
+          </td>
+          <td class="small">
+            {% if u.totp_enabled %}
+              <span class="badge badge-paid">on</span>
+              <div class="muted small">{{ u.recovery_codes_left }} recovery code{{ 's' if u.recovery_codes_left != 1 }} left</div>
+            {% else %}<span class="badge badge-draft">off</span>{% endif %}
+          </td>
+          <td class="small">{{ u.last_login|dt('%d %b %Y, %H:%M') if u.last_login else 'Never' }}</td>
+          <td class="right nowrap">
+            <button class="btn btn-sm" type="button" onclick="editUser({{ u.id }})">Edit</button>
+            {% if u.is_active and u.email %}
+            <form method="post" action="/settings/users/{{ u.id }}/invite" style="display:inline"
+                  onsubmit="return confirm('Email {{ u.username }} a link to set their own password?\n\nNo password is sent. The link works once and expires in a week.')">
+              <button class="btn btn-sm" type="submit">
+                {{ 'Send it again' if u.invite_outstanding else 'Email an invitation' }}</button></form>
+            {% endif %}
+            {% if u.invite_outstanding %}
+            <form method="post" action="/settings/users/{{ u.id }}/cancel-invite" style="display:inline"
+                  onsubmit="return confirm('Cancel the invitation? The link already sent to them stops working.')">
+              <button class="btn btn-sm" type="submit">Cancel invitation</button></form>
+            {% endif %}
+            <form method="post" action="/settings/users/{{ u.id }}/reset-password" style="display:inline"
+                  onsubmit="return confirm('Reset this password? A new temporary one will be shown once.')">
+              <button class="btn btn-sm" type="submit">Reset password</button></form>
+            {% if u.totp_enabled %}
+            <form method="post" action="/settings/users/{{ u.id }}/clear-two-factor" style="display:inline"
+                  onsubmit="return confirm('Clear two-factor sign-in for this person?\n\nThey will sign in with their password alone until they set it up again. Do this only when you are certain who is asking.')">
+              <button class="btn btn-sm btn-danger" type="submit">Clear two-factor</button></form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2 id="form-title">Add a user</h2>
+    <div class="actions"><button class="btn btn-sm" type="button" onclick="newUser()">Clear the form</button></div></div>
+  <form class="card-body" method="post" action="/settings/users/save" style="max-width:900px">
+    <input type="hidden" name="id" id="u-id" value="">
+    <div class="field-row">
+      <div class="field"><label for="u-username">Username *</label>
+        <input id="u-username" name="username" required></div>
+      <div class="field"><label for="u-name">Full name</label><input id="u-name" name="full_name"></div>
+      <div class="field"><label for="u-email">Email</label><input id="u-email" type="email" name="email"></div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="flex:2"><label for="u-role">Role</label>
+        <select id="u-role" name="role">
+          {% for value, description in roles %}
+          <option value="{{ value }}">{{ description }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field"><label for="u-job">Job title</label><input id="u-job" name="job_title"></div>
+      <div class="field"><label for="u-dept">Department</label><input id="u-dept" name="department"></div>
+    </div>
+    <div class="check"><input type="checkbox" id="u-active" name="is_active" value="1" checked>
+      <label for="u-active">Can sign in</label></div>
+    {% if can(user, 'delete') %}
+    <div class="check"><input type="checkbox" id="u-super" name="is_super_admin" value="1">
+      <label for="u-super">Super administrator — can delete records for good</label></div>
+    <p class="hint">
+      Only an administrator can hold this, and only another super administrator can
+      grant it. It is the one permission that cannot be undone by doing the opposite:
+      a deleted invoice does not come back. Give it to as few people as you can manage
+      with — often one.
+    </p>
+    {% endif %}
+    <p class="hint">A new user gets a temporary password, shown once when you save. They must change it at first sign-in.</p>
+
+    <fieldset style="margin-top:1rem">
+      <legend>Requisitions</legend>
+      <div class="field-row">
+        <div class="field" style="flex:2"><label for="u-manager">Their manager</label>
+          <select id="u-manager" name="manager_id">
+            <option value="">— nobody —</option>
+            {% for m in users %}
+            <option value="{{ m.id }}">{{ m.display_name }}{% if m.job_title %} — {{ m.job_title }}{% endif %}</option>
+            {% endfor %}
+          </select>
+          <div class="hint">Where their requisitions go for approval. Without one they
+            cannot raise any, because there would be nobody to approve them.</div></div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <div class="check"><input type="checkbox" id="u-director" name="approves_large_requisitions" value="1">
+            <label for="u-director">Signs off requisitions over the limit</label></div>
+          <div class="check"><input type="checkbox" id="u-finance" name="pays_requisitions" value="1">
+            <label for="u-finance">Can release the money</label></div>
+          <div class="hint">
+            {% if limit %}The limit is {{ limit|money }} — set it in Settings.
+            {% else %}No limit is set, so the manager alone is enough whatever the amount.{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="u-bank">Bank</label>
+          <input id="u-bank" name="bank_name" placeholder="e.g. GTBank"></div>
+        <div class="field"><label for="u-acct">Account number</label>
+          <input id="u-acct" name="bank_account_no"></div>
+        <div class="field"><label for="u-acctname">Account name</label>
+          <input id="u-acctname" name="bank_account_name"></div>
+      </div>
+      <div class="hint">This is where finance sends the money when a requisition is
+        approved. Without it, their requisitions cannot be paid.</div>
+    </fieldset>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save user</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>What each role can do</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Role</th><th>View</th><th>Invoices &amp; payments</th><th>Journals</th><th>Void</th><th>Settings &amp; users</th></tr></thead>
+      <tbody>
+        <tr><td>Administrator</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td>Accountant</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+        <tr><td>Data entry</td><td>✓</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td>Viewer</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var USERS = {
+  {% for u in users %}
+  {{ u.id }}: {username: {{ u.username|tojson }}, name: {{ u.full_name|tojson }},
+               email: {{ u.email|tojson }}, role: {{ u.role|tojson }},
+               active: {{ 'true' if u.is_active else 'false' }},
+               job: {{ u.job_title|tojson }}, dept: {{ u.department|tojson }},
+               manager: {{ u.manager_id or 0 }},
+               director: {{ 'true' if u.approves_large_requisitions else 'false' }},
+               superadmin: {{ 'true' if u.is_super_admin else 'false' }},
+               finance: {{ 'true' if u.pays_requisitions else 'false' }},
+               bank: {{ u.bank_name|tojson }}, acct: {{ u.bank_account_no|tojson }},
+               acctname: {{ u.bank_account_name|tojson }}}{{ ',' if not loop.last }}
+  {% endfor %}
+};
+function editUser(id) {
+  var u = USERS[id];
+  document.getElementById('u-job').value = u.job;
+  document.getElementById('u-dept').value = u.dept;
+  document.getElementById('u-manager').value = u.manager || '';
+  document.getElementById('u-director').checked = u.director;
+  document.getElementById('u-finance').checked = u.finance;
+  var sup = document.getElementById('u-super');
+  if (sup) { sup.checked = u.superadmin; }
+  document.getElementById('u-bank').value = u.bank;
+  document.getElementById('u-acct').value = u.acct;
+  document.getElementById('u-acctname').value = u.acctname;
+  fillUser(id, u.username, u.name, u.email, u.role, u.active ? 1 : 0);
+}
+function fillUser(id, username, name, email, role, active) {
+  document.getElementById('u-id').value = id;
+  document.getElementById('u-username').value = username;
+  document.getElementById('u-name').value = name;
+  document.getElementById('u-email').value = email;
+  document.getElementById('u-role').value = role;
+  document.getElementById('u-active').checked = !!active;
+  document.getElementById('form-title').textContent = 'Edit ' + username;
+  document.getElementById('u-username').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function newUser() {
+  document.getElementById('u-id').value = '';
+  ['u-username', 'u-name', 'u-email', 'u-job', 'u-dept',
+   'u-bank', 'u-acct', 'u-acctname'].forEach(function (i) {
+    document.getElementById(i).value = '';
+  });
+  document.getElementById('u-manager').value = '';
+  var freshSuper = document.getElementById('u-super');
+  if (freshSuper) { freshSuper.checked = false; }
+  document.getElementById('u-director').checked = false;
+  document.getElementById('u-finance').checked = false;
+  document.getElementById('u-active').checked = true;
+  document.getElementById('form-title').textContent = 'Add a user';
+}
+</script>
+{% endblock %}

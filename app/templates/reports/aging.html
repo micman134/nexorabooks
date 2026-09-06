@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Receivables' if receivable else 'Payables' }} ageing{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Receivables' if receivable else 'Payables' }} ageing</h1>
+    <div class="muted small">{{ company.name }} · as at {{ as_of|dt }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="?kind={{ 'ar' if receivable else 'ap' }}&end={{ as_of }}&format=csv">Export CSV</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<div class="tabs no-print">
+  <a href="/reports/aging?kind=ar&end={{ as_of }}" class="{{ 'active' if receivable }}">Money owed to you</a>
+  <a href="/reports/aging?kind=ap&end={{ as_of }}" class="{{ 'active' if not receivable }}">Money you owe</a>
+</div>
+
+<form class="filters no-print" method="get">
+  <input type="hidden" name="kind" value="{{ 'ar' if receivable else 'ap' }}">
+  <div class="field"><label>As at</label><input type="date" name="end" value="{{ as_of }}"></div>
+  <button class="btn" type="submit">Apply</button>
+</form>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Total outstanding</div><div class="value">{{ grand|money }}</div></div>
+  <div class="stat {{ 'warn' if totals[1:]|sum }}"><div class="label">Overdue</div>
+    <div class="value">{{ (totals[1:]|sum)|money }}</div></div>
+  <div class="stat {{ 'danger' if totals[4] }}"><div class="label">Over 90 days</div>
+    <div class="value">{{ totals[4]|money }}</div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>{{ 'Customer' if receivable else 'Supplier' }}</th>
+        {% for b in buckets %}<th class="num">{{ b }}</th>{% endfor %}
+        <th class="num">Total</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><a href="/contacts/{{ r.contact.id }}">{{ r.contact.name }}</a>
+            {% if r.contact.phone %}<div class="muted small">{{ r.contact.phone }}</div>{% endif %}</td>
+          {% for b in r.buckets %}<td class="num {{ 'neg' if b < 0 }}">{{ b|money if b else '' }}</td>{% endfor %}
+          <td class="num strong">{{ r.total|money }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">Nothing outstanding — everything is settled.</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr class="grand"><td>Total</td>
+        {% for t in totals %}<td class="num">{{ t|money }}</td>{% endfor %}
+        <td class="num">{{ grand|money }}</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+
+{% if rows %}
+<div class="card no-print">
+  <div class="card-head"><h3>Document detail</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>{{ 'Customer' if receivable else 'Supplier' }}</th><th>Document</th><th>Date</th>
+        <th>Due</th><th>Age</th><th class="num">Outstanding</th></tr></thead>
+      <tbody>
+        {% for r in rows %}{% for doc, idx, amt in r.docs %}
+        <tr>
+          <td>{{ r.contact.name }}</td>
+          <td><a href="{{ '/sales/invoices/' if receivable else '/purchases/bills/' }}{{ doc.id }}">{{ doc.number }}</a></td>
+          <td class="nowrap">{{ doc.date|dt }}</td>
+          <td class="nowrap">{{ doc.due_date|dt if doc.due_date }}</td>
+          <td>{{ buckets[idx] }}</td>
+          <td class="num">{{ amt|money }}</td>
+        </tr>
+        {% endfor %}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

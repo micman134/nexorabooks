@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}{{ lc.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ lc.number }} <span class="badge {{ lc.status|status_class }}">{{ lc.status|lower }}</span></h1>
+    <div class="muted small">{{ lc.date|dt }}
+      {% if lc.reference %} · {{ lc.reference }}{% endif %}
+      · spread {{ lc.basis_label|lower }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/landed-costs/{{ lc.id }}?format=csv">Export</a>
+    <a class="btn" href="/landed-costs">All consignments</a>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Goods invoiced</div>
+    <div class="value">{{ lc.goods_value|money }}</div></div>
+  <div class="stat accent"><div class="label">Charges to spread</div>
+    <div class="value">{{ lc.total_charges|money }}</div></div>
+  <div class="stat"><div class="label">True cost of the goods</div>
+    <div class="value">{{ (lc.goods_value + lc.total_charges)|money }}</div></div>
+  <div class="stat"><div class="label">Uplift</div>
+    <div class="value">{{ ((lc.total_charges * 100 / lc.goods_value)|round(1)) if lc.goods_value else 0 }}%</div>
+    <div class="sub">On top of the supplier's price</div></div>
+</div>
+
+{% if lc.status == 'DRAFT' and can(user, 'journal') %}
+<div class="alert alert-info no-print">
+  <b>Nothing has been posted yet.</b> Check the split below, then post it.
+  The charges leave the freight and duty accounts and become part of the stock.
+  <div class="btn-row" style="margin-top:.6rem">
+    <form method="post" action="/landed-costs/{{ lc.id }}/post">
+      <button class="btn btn-primary" type="submit"
+              {{ 'disabled' if not lc.charges or not lc.lines }}>
+        Post {{ lc.total_charges|money }} into stock</button>
+    </form>
+    <form method="post" action="/landed-costs/{{ lc.id }}/delete"
+          onsubmit="return confirm('Delete this draft? Nothing has been posted, so nothing is lost.')">
+      <button class="btn btn-danger" type="submit">Delete the draft</button>
+    </form>
+  </div>
+</div>
+{% elif lc.status == 'POSTED' %}
+<div class="card no-print"><div class="card-body btn-row">
+  {% if entry %}<a class="btn" href="/journals/{{ entry.id }}">Journal {{ entry.number }}</a>{% endif %}
+  {% if can(user, 'void') %}
+  <form method="post" action="/landed-costs/{{ lc.id }}/void"
+        onsubmit="return confirm('Reverse {{ lc.number }}? The cost comes back off the stock and the entry is reversed in the ledger.')">
+    <button class="btn btn-danger" type="submit">Reverse it</button>
+  </form>
+  {% endif %}
+</div></div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><h3>Charges being spread</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>What</th><th>Out of which account</th><th>Who charged it</th>
+        <th class="num">Amount</th>{% if lc.status == 'DRAFT' and can(user, 'journal') %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+        {% for c in lc.charges %}
+        <tr>
+          <td>{{ c.description }}</td>
+          <td class="small">{{ (c.account.code ~ ' — ' ~ c.account.name) if c.account else '—' }}</td>
+          <td class="small">{{ c.contact.name if c.contact else '—' }}</td>
+          <td class="num">{{ c.amount|money }}</td>
+          {% if lc.status == 'DRAFT' and can(user, 'journal') %}
+          <td class="right">
+            <label class="muted small"><input type="checkbox" form="respread"
+                    name="remove_charge" value="{{ c.id }}"> remove</label>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty">No charges added yet.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if lc.charges %}
+      <tfoot><tr><th colspan="3">Total</th><th class="num">{{ lc.total_charges|money }}</th>
+        {% if lc.status == 'DRAFT' and can(user, 'journal') %}<th></th>{% endif %}</tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+
+  {% if lc.status == 'DRAFT' and can(user, 'journal') %}
+  <form class="card-body" method="post" action="/landed-costs/{{ lc.id }}/add-charge">
+    <div class="field-row">
+      <div class="field" style="flex:1.5"><label for="ds">What is it</label>
+        <input id="ds" name="description" placeholder="e.g. Ocean freight, import duty, agent's fee"></div>
+      <div class="field" style="flex:1.5"><label for="ac">Sitting in which account</label>
+        <select id="ac" name="account_id">
+          {% for a in charge_accounts %}
+          <option value="{{ a.id }}" {{ 'selected' if a.code == '5030' }}>{{ a.code }} — {{ a.name }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field"><label for="ct">Who charged it</label>
+        <select id="ct" name="contact_id">
+          <option value="">—</option>
+          {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="am">Amount</label>
+        <input id="am" class="num" name="amount" placeholder="0.00"></div>
+    </div>
+    <button class="btn" type="submit">Add the charge</button>
+    <span class="muted small">The account it is sitting in now — the one the freight bill was booked to.</span>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>What the charges land on</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Item</th><th>Purchase</th><th class="num">Quantity</th>
+        <th class="num">Invoiced</th>
+        {% if lc.basis == 'WEIGHT' %}<th class="num">Weight (kg)</th>{% endif %}
+        <th class="num">Share of charges</th><th class="num">Uplift</th>
+        <th class="num">New cost each</th>
+        {% if lc.status == 'DRAFT' and can(user, 'journal') %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+        {% for l in lc.lines %}
+        <tr>
+          <td><a href="/inventory/{{ l.item_id }}">{{ l.description }}</a></td>
+          <td class="small mono">
+            {% if l.bill %}<a href="/purchases/bills/{{ l.bill_id }}">{{ l.bill.number }}</a>
+            {% else %}—{% endif %}</td>
+          <td class="num">{{ l.qty|qty }}</td>
+          <td class="num muted">{{ l.value|money }}</td>
+          {% if lc.basis == 'WEIGHT' %}
+          <td class="num">
+            {% if lc.status == 'DRAFT' and can(user, 'journal') %}
+            <input class="num" form="respread" name="weight_{{ l.id }}"
+                   value="{{ (l.weight / 1000)|round(3) if l.weight else '' }}"
+                   style="max-width:110px" placeholder="0">
+            {% else %}{{ (l.weight / 1000)|round(3) }}{% endif %}
+          </td>
+          {% endif %}
+          <td class="num"><b>{{ l.allocated|money }}</b></td>
+          <td class="num small muted">{{ l.uplift_pct }}</td>
+          <td class="num">{{ l.new_unit_cost|money }}</td>
+          {% if lc.status == 'DRAFT' and can(user, 'journal') %}
+          <td class="right">
+            <label class="muted small"><input type="checkbox" form="respread"
+                    name="remove_line" value="{{ l.id }}"> remove</label>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty">No purchase added yet — choose one below.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if lc.lines %}
+      <tfoot><tr>
+        <th colspan="{{ 4 if lc.basis != 'WEIGHT' else 5 }}">Total</th>
+        <th class="num">{{ lc.total_allocated|money }}</th><th colspan="2"></th>
+        {% if lc.status == 'DRAFT' and can(user, 'journal') %}<th></th>{% endif %}
+      </tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+
+  {% if lc.status == 'DRAFT' and can(user, 'journal') %}
+  <form class="card-body" method="post" action="/landed-costs/{{ lc.id }}/add-bill">
+    <div class="field-row">
+      <div class="field" style="flex:3"><label for="bl">Add a purchase</label>
+        <select id="bl" name="bill_id">
+          <option value="">— choose the purchase these charges brought in —</option>
+          {% for b in purchases %}
+          <option value="{{ b.id }}">{{ b.number }} · {{ b.date|dt }} · {{ b.contact.name }}
+            · {{ b.total|money }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field"><label>&nbsp;</label>
+        <button class="btn" type="submit">Add it</button></div>
+    </div>
+    <div class="hint">Only posted purchases with stock on them can carry freight.</div>
+  </form>
+  {% endif %}
+</div>
+
+{% if lc.status == 'DRAFT' and can(user, 'journal') %}
+<div class="card no-print">
+  <div class="card-head"><h3>How it is spread</h3></div>
+  <form class="card-body" id="respread" method="post" action="/landed-costs/{{ lc.id }}/update">
+    <div class="field-row">
+      <div class="field" style="flex:2"><label for="bs">Basis</label>
+        <select id="bs" name="basis">
+          {% for value, label in bases %}
+          <option value="{{ value }}" {{ 'selected' if lc.basis == value }}>{{ label }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field"><label for="dt">Date</label>
+        <input id="dt" type="date" name="date" value="{{ lc.date.isoformat() }}"></div>
+      <div class="field"><label for="rf">Reference</label>
+        <input id="rf" name="reference" value="{{ lc.reference }}"></div>
+      <div class="field" style="flex:2"><label for="nt">Note</label>
+        <input id="nt" name="note" value="{{ lc.note }}"></div>
+    </div>
+    <button class="btn btn-primary" type="submit">Spread it again</button>
+    <span class="muted small">Also applies any weights you typed and removes anything you ticked.</span>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

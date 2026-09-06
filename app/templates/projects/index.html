@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter %}
+{% block title %}Projects &amp; jobs{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Projects &amp; jobs</h1>
+    <div class="muted small">What each one has earned and cost, read straight from the ledger</div>
+  </div>
+  <div class="actions no-print">
+    {% if can(user, 'entry') %}
+    <button class="btn btn-primary" type="button" onclick="newProject()">New project</button>
+    {% endif %}
+    <button class="btn" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+{{ period_filter(preset, start, end, '<input type="hidden" name="finished" value="' ~ ('1' if show_finished else '0') ~ '">') }}
+
+{% set live = rows | selectattr('project.is_open') | list %}
+{% set worried = rows | selectattr('needs_attention') | list %}
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Projects</div>
+    <div class="value">{{ rows|length }}</div>
+    <div class="sub">{{ live|length }} still open</div></div>
+  <div class="stat"><div class="label">Billed on them</div>
+    <div class="value pos">{{ rows|sum(attribute='figures.revenue')|money }}</div></div>
+  <div class="stat"><div class="label">Cost booked</div>
+    <div class="value neg">{{ rows|sum(attribute='figures.cost')|money }}</div></div>
+  <div class="stat {{ 'danger' if worried }}"><div class="label">Need attention</div>
+    <div class="value">{{ worried|length }}</div>
+    <div class="sub">over budget, unbilled or losing</div></div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Every project</h2>
+    <div class="actions no-print">
+      <a class="btn btn-sm {{ 'btn-primary' if show_finished }}"
+         href="?finished={{ '0' if show_finished else '1' }}&start={{ start }}&end={{ end }}">
+        {{ 'Hide finished' if show_finished else 'Show finished' }}</a>
+    </div>
+  </div>
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Project</th><th>Customer</th><th class="num">Billed</th>
+        <th class="num">Cost</th><th class="num">Profit</th><th class="num">Margin</th>
+        <th>How it is going</th><th class="no-print"></th></tr></thead>
+      <tbody>
+        {% for s in rows %}
+        <tr>
+          <td><a href="/projects/{{ s.project.id }}">{{ s.project.code }} — {{ s.name }}</a>
+            {% if not s.project.is_open %}<span class="badge badge-draft">{{ s.project.status|lower }}</span>{% endif %}
+            {% if s.project.due_on %}<div class="muted small">due {{ s.project.due_on|dt }}</div>{% endif %}</td>
+          <td class="small">{{ s.project.contact.name if s.project.contact else '—' }}</td>
+          <td class="num">{{ s.figures.revenue|money }}
+            {% if s.project.contract_value %}
+            <div class="bar"><span style="width:{{ [s.billed, 100]|min|round(1) }}%; background:var(--good)"></span></div>
+            <div class="muted small">{{ '%.0f'|format(s.billed) }}% of {{ s.project.contract_value|money }}</div>
+            {% endif %}</td>
+          <td class="num">{{ s.figures.cost|money }}
+            {% if s.project.budget_cost %}
+            <div class="bar"><span style="width:{{ [s.budget_used, 100]|min|round(1) }}%;
+              background:{{ 'var(--danger)' if s.over_budget else 'var(--warn)' }}"></span></div>
+            <div class="muted small">{{ '%.0f'|format(s.budget_used) }}% of {{ s.project.budget_cost|money }}</div>
+            {% endif %}</td>
+          <td class="num {{ 'pos' if s.figures.profit > 0 else ('neg' if s.figures.profit < 0 else '') }}">
+            {{ s.figures.profit|money }}</td>
+          <td class="num small">{{ '%.1f'|format(s.figures.margin) }}%</td>
+          <td class="small">
+            {% if s.concerns %}
+              {% for c in s.concerns %}<div class="neg">{{ c }}</div>{% endfor %}
+            {% else %}<span class="muted">Nothing to flag.</span>{% endif %}
+          </td>
+          <td class="right no-print"><a class="btn btn-sm" href="/projects/{{ s.project.id }}">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <p><strong>No projects yet.</strong></p>
+    <p class="muted">Set one up, then code invoices and bills to it as you raise them.
+      Everything else on this page reads itself out of your ledger.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% if unallocated.revenue or unallocated.cost %}
+<div class="card">
+  <div class="card-head"><h2>Not coded to any project</h2></div>
+  <div class="card-body">
+    <p>{{ unallocated.revenue|money }} of income and {{ unallocated.cost|money }} of cost
+      in this period is not coded to a job.</p>
+    <p class="muted small">
+      That is shown here on purpose. Job costing where most of the money is uncoded
+      looks complete and is not, and somebody will make a decision on it. Overheads
+      belonging to no particular job are perfectly normal — direct costs sitting here
+      are not.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+{% if can(user, 'entry') %}
+<div class="card no-print" id="editor" style="display:none">
+  <div class="card-head"><h2 id="editor-title">New project</h2></div>
+  <form method="post" action="/projects/save">
+    <input type="hidden" name="id" id="f-id">
+    <div class="card-body">
+      <div class="filters">
+        <div class="field"><label for="f-name">Name</label>
+          <input id="f-name" name="name" required placeholder="Ikoyi site — phase 2"></div>
+        <div class="field"><label for="f-contact">Customer</label>
+          <select id="f-contact" name="contact_id"><option value="">— none —</option>
+            {% for c in contacts %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="f-manager">Run by</label>
+          <select id="f-manager" name="manager_id"><option value="">— nobody —</option>
+            {% for u in users %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="f-contract">What it is worth</label>
+          <input id="f-contract" name="contract_value" value="0.00"></div>
+        <div class="field"><label for="f-budget">What it should cost</label>
+          <input id="f-budget" name="budget_cost" value="0.00"></div>
+        <div class="field"><label for="f-started">Started</label>
+          <input id="f-started" type="date" name="started_on"></div>
+        <div class="field"><label for="f-due">Due to finish</label>
+          <input id="f-due" type="date" name="due_on"></div>
+        <div class="field"><label for="f-status">Status</label>
+          <select id="f-status" name="status">
+            {% for key, label in statuses %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="field"><label for="f-notes">Notes</label>
+        <textarea id="f-notes" name="notes" rows="2"></textarea></div>
+      <button class="btn btn-primary" type="submit">Save</button>
+      <button class="btn" type="button" onclick="document.getElementById('editor').style.display='none'">Cancel</button>
+      <div class="hint">Coding work to a job is done on the invoice or bill itself —
+        every line has a project box.</div>
+    </div>
+  </form>
+</div>
+<script>
+function newProject() {
+  var box = document.getElementById('editor');
+  box.style.display = '';
+  box.scrollIntoView({behavior: 'smooth'});
+  document.getElementById('f-name').focus();
+}
+</script>
+{% endif %}
+{% endblock %}

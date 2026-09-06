@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Settings</h1></div>
+
+<div class="grid grid-3">
+  <div class="card"><div class="card-body">
+    <h3><a href="/settings/company">Company details</a></h3>
+    <p class="muted small">Country, currency, {{ company.tax_id_label or 'tax ID' }},
+      {{ company.tax_label or 'VAT' }} registration, financial year and invoice wording.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/settings/users">Users and access</a></h3>
+    <p class="muted small">Add staff, set what each person can do, reset passwords.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/settings/tax">Tax codes</a></h3>
+    <p class="muted small">{{ company.tax_label or 'VAT' }} rates{% if company.country_code == 'NG' %}
+      and the full withholding tax schedule{% endif %}.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/settings/periods">Period lock and year end</a></h3>
+    <p class="muted small">Stop changes to closed months, and roll the year into retained earnings.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/settings/backup">Backup and restore</a></h3>
+    <p class="muted small">Take a copy of your books, or put one back.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/settings/network">Access from other computers</a></h3>
+    <p class="muted small">How your staff reach {{ APP_NAME }} across the office network.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/accounts">Chart of accounts</a></h3>
+    <p class="muted small">Add, rename or archive accounts.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/reports/audit-trail">Audit trail</a></h3>
+    <p class="muted small">Who did what, and when.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/settings/einvoicing">Electronic invoicing</a></h3>
+    <p class="muted small">The Revenue Service mandate. Check whether your records would
+      pass, and rehearse the whole thing on your own invoices before the deadline.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/settings/email">Email</a></h3>
+    <p class="muted small">Send invoices, quotations and statements straight to
+      customers as a PDF, from your own address.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/import">Bring in your data</a></h3>
+    <p class="muted small">Customers, suppliers, items, opening balances and unpaid
+      invoices, out of a spreadsheet or your old system.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/settings/diagnostics">Diagnostics</a></h3>
+    <p class="muted small">One file describing this installation, for whoever
+      supports you when something is not working.</p>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <h3><a href="/settings/licence">Licence</a></h3>
+    <p class="muted small">
+      {{ licence.headline if licence else 'Trial' }} — the code for this computer, and
+      where to enter a key.</p>
+  </div></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>This installation</h3></div>
+  <div class="card-body">
+    <table class="data">
+      <tr><th>Version</th><td>{{ APP_NAME }} {{ APP_VERSION }}</td></tr>
+      <tr><th>Data folder</th><td class="mono small">{{ data_dir }}</td></tr>
+      <tr><th>Database size</th><td>{{ (db_size / 1024) | round | int }} KB</td></tr>
+    </table>
+    <p class="hint" style="margin-top:.75rem">
+      Your books live entirely on this computer, in the folder above. Nothing is sent anywhere.
+      Back it up regularly — and keep a copy somewhere other than this machine.
+    </p>
+  </div>
+</div>
+{% endblock %}

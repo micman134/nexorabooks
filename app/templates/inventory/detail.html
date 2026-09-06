@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ item.name }}</h1>
+    <div class="muted small">{{ item.code }} · {{ 'Stock item' if item.item_type == 'STOCK' else 'Service' }}
+      {% if item.category %} · {{ item.category }}{% endif %}
+      {% if item.item_type == 'STOCK' %}
+      · {{ 'first in, first out' if item.costing_method == 'FIFO' else 'weighted average' }}
+      {% if item.track_batches %} · batch tracked{% endif %}
+      {% if item.track_serials %} · serial tracked{% endif %}
+      {% endif %}</div>
+  </div>
+  <div class="actions">
+    {% if can(user, 'entry') %}<a class="btn" href="/inventory/{{ item.id }}/edit">Edit</a>{% endif %}
+    {% if item.item_type == 'STOCK' and can(user, 'entry') and locations|length > 1 %}
+      <a class="btn" href="/inventory/transfer?item={{ item.id }}">Move stock</a>{% endif %}
+    {% if item.item_type == 'STOCK' and can(user, 'journal') %}
+      <a class="btn btn-primary" href="/inventory/{{ item.id }}/adjust">Adjust stock</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Sale price</div><div class="value">{{ item.sale_price|money }}</div>
+    <div class="sub">per {{ item.unit }}, before VAT</div></div>
+  {% if item.item_type == 'STOCK' %}
+  <div class="stat"><div class="label">On hand</div>
+    <div class="value {{ 'neg' if item.qty_on_hand < 0 }}">{{ item.qty_on_hand|qty }}</div>
+    <div class="sub">{{ item.unit }}{% if item.reorder_level %} · reorder at {{ item.reorder_level|qty }}{% endif %}</div></div>
+  <div class="stat"><div class="label">Cost per {{ item.unit }}</div><div class="value">{{ unit_cost|money }}</div>
+    <div class="sub">{{ 'average of the layers on hand' if item.costing_method == 'FIFO' else 'weighted average' }}</div></div>
+  <div class="stat"><div class="label">Stock value</div><div class="value">{{ item.stock_value|money }}</div>
+    <div class="sub">Margin {{ ((item.sale_price - unit_cost) * 100 // item.sale_price) if item.sale_price else 0 }}%</div></div>
+  {% endif %}
+</div>
+
+{% if item.description %}<div class="card"><div class="card-body">{{ item.description }}</div></div>{% endif %}
+
+
+{% if item.item_type == 'STOCK' %}
+{% if not levels_ok or not layers_ok %}
+<div class="alert alert-danger">
+  <b>This item does not add up.</b>
+  {% if not levels_ok %}The quantities held across the stores do not match the total on hand.{% endif %}
+  {% if not layers_ok %}The cost layers do not add up to the item's value.{% endif %}
+  Take a stock count through <a href="/inventory/{{ item.id }}/adjust">Adjust stock</a>,
+  and report this — it should not happen.
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Where it is</h3>
+      {% if can(user, 'entry') and locations|length > 1 %}
+      <div class="actions"><a class="btn btn-sm" href="/inventory/transfer?item={{ item.id }}">Move some</a></div>
+      {% endif %}
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Place</th>{% if item.track_batches %}<th>Batch</th><th>Expires</th>{% endif %}
+          <th class="num">Quantity</th><th class="num">Value</th></tr></thead>
+        <tbody>
+          {% for l in levels %}
+          <tr>
+            <td>{{ l.location.name if l.location else '—' }}</td>
+            {% if item.track_batches %}
+            <td class="mono">{{ l.batch.batch_no if l.batch else '—' }}</td>
+            <td class="small {{ 'neg' if l.batch and l.batch.is_expired }}">
+              {{ l.batch.expiry_date|dt if l.batch and l.batch.expiry_date else '—' }}
+              {% if l.batch and l.batch.is_expired %}<span class="badge badge-void">expired</span>{% endif %}</td>
+            {% endif %}
+            <td class="num">{{ l.qty|qty }} {{ item.unit }}</td>
+            <td class="num muted">{{ level_values.get(l.id, 0)|money }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="empty">None on hand.</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if levels %}
+        <tfoot><tr><th{% if item.track_batches %} colspan="3"{% endif %}>Total</th>
+          <th class="num">{{ item.qty_on_hand|qty }} {{ item.unit }}</th>
+          <th class="num">{{ item.stock_value|money }}</th></tr></tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+  {% if item.costing_method == 'FIFO' %}
+  <div class="card">
+    <div class="card-head"><h3>What is left, oldest first</h3></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Received</th><th>Document</th><th>Place</th>
+          <th class="num">Left</th><th class="num">Cost each</th><th class="num">Value</th></tr></thead>
+        <tbody>
+          {% for l in layers %}
+          <tr>
+            <td>{{ l.date|dt }}</td>
+            <td class="small mono">{{ l.doc_number or l.doc_type|title }}</td>
+            <td class="small">{{ l.location.name if l.location else '—' }}</td>
+            <td class="num">{{ l.qty_left|qty }}</td>
+            <td class="num">{{ l.unit_cost|money }}</td>
+            <td class="num">{{ l.value_left|money }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="empty">Nothing on hand.</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if layers %}
+        <tfoot><tr><th colspan="3">Total</th>
+          <th class="num">{{ layers|sum(attribute='qty_left')|qty }}</th><th></th>
+          <th class="num">{{ layers|sum(attribute='value_left')|money }}</th></tr></tfoot>
+        {% endif %}
+      </table>
+    </div>
+    <div class="card-body muted small">
+      The next sale takes from the top of this list. That is what makes the cost of a sale
+      the cost of the goods that actually went out.
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if item.track_serials %}
+<div class="card">
+  <div class="card-head"><h3>Serial numbers in stock</h3>
+    <div class="actions"><a class="btn btn-sm" href="/inventory/serials?q={{ item.name|urlencode }}">Full history</a></div>
+  </div>
+  <div class="card-body">
+    {% for s in serials %}
+    <span class="badge badge-open mono" style="margin:.15rem;display:inline-block">{{ s.serial }}</span>
+    {% else %}
+    <span class="muted">None in stock.</span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% if item.item_type == 'STOCK' %}
+<div class="card">
+  <div class="card-head"><h2>Stock movements</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Date</th><th>Document</th><th>Where</th><th>Narration</th><th class="num">In</th><th class="num">Out</th>
+        <th class="num">Unit cost</th><th class="num">Value</th><th class="num">Balance</th><th class="num">Value on hand</th></tr></thead>
+      <tbody>
+        {% for m in moves %}
+        <tr>
+          <td class="nowrap">{{ m.date|dt }}</td>
+          <td>{{ m.doc_number or m.doc_type|title }}</td>
+          <td class="small">{{ m.location.name if m.location else '—' }}
+            {% if m.batch %}<div class="muted small">{{ m.batch.batch_no }}</div>{% endif %}</td>
+          <td class="small">{{ m.memo }}</td>
+          <td class="num">{{ m.qty|qty if m.qty > 0 else '' }}</td>
+          <td class="num">{{ (-m.qty)|qty if m.qty < 0 else '' }}</td>
+          <td class="num">{{ m.unit_cost|money }}</td>
+          <td class="num {{ 'neg' if m.value < 0 }}">{{ m.value|money }}</td>
+          <td class="num">{{ m.balance_qty|qty }}</td>
+          <td class="num">{{ m.balance_value|money }}</td>
+        </tr>
+        {% else %}<tr><td colspan="10" class="empty">No movements yet. Buy some stock or set an opening quantity via Adjust stock.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><h3>Accounts used</h3></div>
+  <div class="card-body">
+    <table class="data">
+      <tr><th>Revenue</th><td>{{ (item.sales_account.code ~ ' — ' ~ item.sales_account.name) if item.sales_account else 'Default' }}</td></tr>
+      <tr><th>Purchases / expense</th><td>{{ (item.purchase_account.code ~ ' — ' ~ item.purchase_account.name) if item.purchase_account else 'Default' }}</td></tr>
+      <tr><th>Inventory</th><td>{{ (item.inventory_account.code ~ ' — ' ~ item.inventory_account.name) if item.inventory_account else 'Default' }}</td></tr>
+      <tr><th>Cost of sales</th><td>{{ (item.cogs_account.code ~ ' — ' ~ item.cogs_account.name) if item.cogs_account else 'Default' }}</td></tr>
+      <tr><th>VAT on sale</th><td>{{ item.sale_tax_code.name if item.sale_tax_code else 'None' }}</td></tr>
+      <tr><th>VAT on purchase</th><td>{{ item.purchase_tax_code.name if item.purchase_tax_code else 'None' }}</td></tr>
+    </table>
+  </div>
+</div>
+{% endblock %}

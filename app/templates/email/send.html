@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ title }}</h1>
+  <div class="actions"><a class="btn" href="{{ back }}">Cancel</a></div>
+</div>
+
+{% if not mail.ready %}
+<div class="alert alert-warning">
+  Email is not set up yet, so this cannot send. It takes about a minute —
+  <a href="/settings/email">Settings &rsaquo; Email</a>. Meanwhile you can still
+  download the PDF and attach it yourself.
+</div>
+{% endif %}
+
+<form method="post" action="{{ action }}" style="max-width:820px">
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field"><label for="to">To</label>
+          {% if locked_to %}
+          {# A payslip goes to the address on the person's own record and to no
+             other. Typing it here would put one typo between somebody's pay and
+             a stranger's inbox. #}
+          <input id="to" type="email" value="{{ to }}" disabled
+                 placeholder="no email address on file">
+          <div class="hint">
+            {% if missing_address %}
+            There is no email address on {{ contact.full_name if contact else 'this record' }}.
+            Add one on their record and come back — it is never typed here.
+            {% else %}
+            Taken from their own record, and it cannot be changed here.
+            <a href="/payroll/employees/{{ contact.id }}">Change it on their record</a>
+            if it is wrong.
+            {% endif %}
+          </div>
+          {% else %}
+          <input id="to" type="email" name="to" value="{{ to }}" required
+                 placeholder="{{ contact.name }}'s email address">
+          {% if not to %}
+          <div class="hint">{{ contact.name }} has no email address on file yet.
+            Whatever you type here is saved against them for next time.</div>
+          {% endif %}
+          {% endif %}
+        </div>
+        {% if not no_cc %}
+        <div class="field"><label for="cc">Copy to</label>
+          <input id="cc" type="email" name="cc" placeholder="optional"></div>
+        {% else %}
+        <div class="field"><label>Copy to</label>
+          <div class="hint" style="padding-top:.5rem">Nobody. A payslip is
+            sent to the one person it belongs to.</div></div>
+        {% endif %}
+      </div>
+      <div class="field"><label for="su">Subject</label>
+        <input id="su" name="subject" value="{{ subject }}" required></div>
+      <div class="field"><label for="bd">Message</label>
+        <textarea id="bd" name="body" rows="12">{{ body }}</textarea>
+        {% if mail.signature %}
+        <div class="hint">Your signature is added underneath automatically.</div>
+        {% endif %}
+      </div>
+      <p class="small">
+        <strong>Attached:</strong> {{ attachment }}
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-primary" type="submit"
+                {{ 'disabled' if not mail.ready or missing_address }}>Send</button>
+        <a class="btn" href="{{ back }}">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+{% if history %}
+<div class="card" style="max-width:820px; margin-top:1.5rem">
+  <div class="card-head"><h2>Already sent</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>When</th><th>To</th><th>By</th><th></th></tr></thead>
+      <tbody>
+        {% for row in history %}
+        <tr>
+          <td>{{ row.sent_at|dt('%d %b %Y, %H:%M') }}</td>
+          <td class="small">{{ row.to_address }}</td>
+          <td class="small muted">{{ row.sent_by.display_name if row.sent_by else '' }}</td>
+          <td>{% if row.ok %}<span class="badge badge-paid">sent</span>
+              {% else %}<span class="badge badge-void">failed</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

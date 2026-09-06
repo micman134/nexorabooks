@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}Payroll scheme{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Payroll scheme</h1>
+  <div class="actions">
+    <a class="btn" href="/payroll/checks">Check the scheme</a>
+    <a class="btn" href="/payroll">Back to payroll</a>
+  </div>
+</div>
+
+{% if checks_total == 0 %}
+<div class="alert alert-warning">
+  <strong>This scheme has not been checked against a real payslip.</strong>
+  Rates you type in yourself are only as right as the typing. Before you pay anybody,
+  take one payslip whose answer you already know and see whether these settings
+  reproduce it — <a href="/payroll/checks">check the scheme</a>.
+</div>
+{% elif checks_failing %}
+<div class="alert alert-danger">
+  <strong>{{ checks_failing }} of {{ checks_total }} checks do not come out right.</strong>
+  The rates below do not reproduce an answer you said you already knew.
+  <a href="/payroll/checks">See what is out</a> before running payroll.
+</div>
+{% elif verified %}
+<div class="alert alert-info">
+  Checked: this scheme reproduces {{ checks_passing }}
+  {{ 'salary' if checks_passing == 1 else 'salaries' }} whose answer you already knew.
+  Re-checked automatically whenever you change a rate.
+</div>
+{% endif %}
+
+<form method="post" action="/payroll/settings" style="max-width:960px">
+  <fieldset>
+    <legend>What your country calls it</legend>
+    <div class="field-row">
+      <div class="field"><label for="sn">Scheme name</label>
+        <input id="sn" name="scheme_name" value="{{ s.scheme_name }}">
+        <div class="hint">For your own reference — appears on payroll reports.</div></div>
+      <div class="field"><label for="tn">Income tax is called</label>
+        <input id="tn" name="tax_name" value="{{ s.tax_name }}" style="max-width:200px">
+        <div class="hint">PAYE, Income Tax, PIT — whatever your payslips say.</div></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Which contributions you operate</legend>
+    <div class="field-row">
+      <div class="check"><input type="checkbox" id="op" name="operates_pension" value="1" {{ 'checked' if s.operates_pension }}>
+        <label for="op">{{ s.pension_name }}</label></div>
+      <div class="check"><input type="checkbox" id="on" name="operates_nhf" value="1" {{ 'checked' if s.operates_nhf }}>
+        <label for="on">{{ s.nhf_name }}</label></div>
+      <div class="check"><input type="checkbox" id="oh" name="operates_nhis" value="1" {{ 'checked' if s.operates_nhis }}>
+        <label for="oh">{{ s.nhis_name }}</label></div>
+      <div class="check"><input type="checkbox" id="os" name="operates_nsitf" value="1" {{ 'checked' if s.operates_nsitf }}>
+        <label for="os">{{ s.nsitf_name }}</label></div>
+      <div class="check"><input type="checkbox" id="oi" name="operates_itf" value="1" {{ 'checked' if s.operates_itf }}>
+        <label for="oi">{{ s.itf_name }}</label></div>
+    </div>
+    <div class="hint">
+      Turning one off stops it being calculated for everybody. There are five slots;
+      rename the ones your country has and leave the rest switched off.
+      {% if company.country_code == 'NG' %}
+      ITF applies to employers with 5 or more staff, or turnover of ₦50 million or more —
+      on your current figures it {{ 'does' if itf_applies else 'does not' }} apply.
+      {% endif %}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Contributions</legend>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th style="min-width:9rem">Name on the payslip</th>
+            <th style="min-width:12rem">Charged on</th>
+            <th class="num">Employee %</th>
+            <th class="num">Employer %</th>
+            <th class="num">Employee cap</th>
+            <th class="num">Employer cap</th>
+            <th>Cuts taxable pay</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input name="pension_name" value="{{ s.pension_name }}"></td>
+            <td><select name="pension_base" style="min-width:15rem">
+              {% for key, label in bases.items() %}
+              <option value="{{ key }}" {{ 'selected' if s.pension_base == key }}>{{ label }}</option>
+              {% endfor %}</select></td>
+            <td><input class="num" name="pension_employee" value="{{ s.pension_employee }}"></td>
+            <td><input class="num" name="pension_employer" value="{{ s.pension_employer }}"></td>
+            <td><input class="num" name="pension_employee_cap" value="{{ s.pension_employee_cap|amount if s.pension_employee_cap else '' }}" placeholder="none"></td>
+            <td><input class="num" name="pension_employer_cap" value="{{ s.pension_employer_cap|amount if s.pension_employer_cap else '' }}" placeholder="none"></td>
+            <td><input type="checkbox" name="pension_reduces_tax" value="1" {{ 'checked' if s.pension_reduces_tax }}></td>
+          </tr>
+          <tr>
+            <td><input name="nhf_name" value="{{ s.nhf_name }}"></td>
+            <td><select name="nhf_base" style="min-width:15rem">
+              {% for key, label in bases.items() %}
+              <option value="{{ key }}" {{ 'selected' if s.nhf_base == key }}>{{ label }}</option>
+              {% endfor %}</select></td>
+            <td><input class="num" name="nhf_rate" value="{{ s.nhf_rate }}"></td>
+            <td class="muted">—</td>
+            <td><input class="num" name="nhf_cap" value="{{ s.nhf_cap|amount if s.nhf_cap else '' }}" placeholder="none"></td>
+            <td class="muted">—</td>
+            <td><input type="checkbox" name="nhf_reduces_tax" value="1" {{ 'checked' if s.nhf_reduces_tax }}></td>
+          </tr>
+          <tr>
+            <td><input name="nhis_name" value="{{ s.nhis_name }}"></td>
+            <td><select name="nhis_base" style="min-width:15rem">
+              {% for key, label in bases.items() %}
+              <option value="{{ key }}" {{ 'selected' if s.nhis_base == key }}>{{ label }}</option>
+              {% endfor %}</select></td>
+            <td><input class="num" name="nhis_employee" value="{{ s.nhis_employee }}"></td>
+            <td><input class="num" name="nhis_employer" value="{{ s.nhis_employer }}"></td>
+            <td><input class="num" name="nhis_employee_cap" value="{{ s.nhis_employee_cap|amount if s.nhis_employee_cap else '' }}" placeholder="none"></td>
+            <td><input class="num" name="nhis_employer_cap" value="{{ s.nhis_employer_cap|amount if s.nhis_employer_cap else '' }}" placeholder="none"></td>
+            <td><input type="checkbox" name="nhis_reduces_tax" value="1" {{ 'checked' if s.nhis_reduces_tax }}></td>
+          </tr>
+          <tr>
+            <td><input name="nsitf_name" value="{{ s.nsitf_name }}"></td>
+            <td><select name="nsitf_base" style="min-width:15rem">
+              {% for key, label in bases.items() %}
+              <option value="{{ key }}" {{ 'selected' if s.nsitf_base == key }}>{{ label }}</option>
+              {% endfor %}</select></td>
+            <td class="muted">—</td>
+            <td><input class="num" name="nsitf_rate" value="{{ s.nsitf_rate }}"></td>
+            <td class="muted">—</td>
+            <td><input class="num" name="nsitf_cap" value="{{ s.nsitf_cap|amount if s.nsitf_cap else '' }}" placeholder="none"></td>
+            <td class="muted">—</td>
+          </tr>
+          <tr>
+            <td><input name="itf_name" value="{{ s.itf_name }}"></td>
+            <td><select name="itf_base" style="min-width:15rem">
+              {% for key, label in bases.items() %}
+              <option value="{{ key }}" {{ 'selected' if s.itf_base == key }}>{{ label }}</option>
+              {% endfor %}</select></td>
+            <td class="muted">—</td>
+            <td><input class="num" name="itf_rate" value="{{ s.itf_rate }}"></td>
+            <td class="muted">—</td>
+            <td><input class="num" name="itf_cap" value="{{ s.itf_cap|amount if s.itf_cap else '' }}" placeholder="none"></td>
+            <td class="muted">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="hint">
+      A cap is the most that can be taken in one pay period — leave it empty where there is
+      no ceiling. <strong>Cuts taxable pay</strong> means the employee's share comes off pay
+      before the tax is worked out; that is true of most compulsory schemes and of almost no
+      voluntary ones.
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>{{ s.tax_name }}</legend>
+    <div class="field-row">
+      <div class="field"><label for="mw">Tax-free threshold (per month)</label>
+        <input id="mw" class="num" name="minimum_wage" value="{{ s.minimum_wage|amount }}">
+        <div class="hint">Anyone earning this or less pays no {{ s.tax_name }}.
+          Set it to zero if your country has no such floor.</div></div>
+      <div class="field"><label for="thn">Which is called</label>
+        <input id="thn" name="threshold_name" value="{{ s.threshold_name }}">
+        <div class="hint">Named on the payslip when somebody falls under it.</div></div>
+      <div class="field"><label for="ps">Tax is remitted to</label>
+        <input id="ps" name="paye_state" value="{{ s.paye_state }}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="rn">Relief name</label>
+        <input id="rn" name="relief_name" value="{{ s.relief_name }}"></div>
+      <div class="field"><label for="rr">Relief rate (%)</label>
+        <input id="rr" class="num" name="rent_relief_rate" value="{{ s.rent_relief_rate }}"></div>
+      <div class="field"><label for="rc">Relief cap (per year)</label>
+        <input id="rc" class="num" name="rent_relief_cap" value="{{ s.rent_relief_cap|amount }}"></div>
+    </div>
+    <div class="hint">
+      The relief is worked out on the annual rent recorded against each employee, at the rate
+      above, capped as above. Set the rate to zero if your country has nothing of the kind.
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tax bands</legend>
+    <div class="check">
+      <input type="checkbox" id="ucb" name="use_custom_bands" value="1" {{ 'checked' if s.use_custom_bands }}>
+      <label for="ucb">Use the bands below rather than the built-in Nigerian ones</label>
+    </div>
+    <div class="hint">
+      Bands are annual and run on from one another: the first covers the lowest slice of
+      chargeable income, the next carries on where it stopped, and the last takes everything
+      above. Leave the last width empty — that is what makes it the top band.
+    </div>
+    <div class="table-wrap" style="margin-top:.75rem">
+      <table class="data">
+        <thead><tr><th style="min-width:14rem">Width of this band (per year)</th><th class="num">Rate %</th><th>Covers</th></tr></thead>
+        <tbody>
+          {% set ns = namespace(lower=0) %}
+          {% for b in bands %}
+          <tr>
+            <td><input class="num" name="band_width"
+                       value="{{ b.width|amount if b.width else '' }}"
+                       placeholder="{{ 'and everything above' if not b.width else '' }}"></td>
+            <td><input class="num" name="band_rate" value="{{ b.rate }}" style="max-width:6rem"></td>
+            <td class="muted small">
+              {% if b.width %}{{ ns.lower|money }} – {{ (ns.lower + b.width)|money }}
+              {% set ns.lower = ns.lower + b.width %}
+              {% else %}Above {{ ns.lower|money }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {% for _ in range(3) %}
+          <tr>
+            <td><input class="num" name="band_width" placeholder="add a band"></td>
+            <td><input class="num" name="band_rate" style="max-width:6rem"></td>
+            <td class="muted small"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Payslips</legend>
+    <div class="field"><label for="pf">Default pension fund administrator</label>
+      <input id="pf" name="default_pfa" value="{{ s.default_pfa }}"></div>
+    <div class="field"><label for="pn">Note printed on every payslip</label>
+      <textarea id="pn" name="payslip_note">{{ s.payslip_note }}</textarea></div>
+  </fieldset>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Save payroll scheme</button>
+    <a class="btn" href="/payroll">Cancel</a>
+  </div>
+</form>
+{% endblock %}

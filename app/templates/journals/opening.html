@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Opening balances{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Opening balances</h1>
+    <div class="muted small">Enter what each account was worth on the day you started using {{ APP_NAME }}.</div>
+  </div>
+</div>
+
+{% if opening_entry %}
+<div class="alert alert-warning">
+  Opening balances were already posted as {{ opening_entry.number }} on {{ opening_entry.date|dt }}.
+  Saving again reverses that entry and posts a fresh one, so nothing is counted twice.
+</div>
+{% else %}
+<div class="alert alert-info">
+  Enter debits for assets (bank, stock, money owed to you) and credits for liabilities and capital
+  (money you owe, loans, owner's equity). Anything left over goes to
+  <strong>3900 Opening Balance Equity</strong> so the entry always balances.
+</div>
+{% endif %}
+
+<form method="post" action="/journals/opening-balances">
+  <div class="card">
+    <div class="card-body">
+      <div class="field" style="max-width:220px"><label for="d">As at</label>
+        <input id="d" type="date" name="date" value="{{ (opening_entry.date if opening_entry else today).isoformat() }}" required></div>
+    </div>
+    <div class="table-wrap">
+      <table class="data" id="obtable">
+        <thead><tr><th>Code</th><th>Account</th><th>Type</th>
+          <th class="num" style="width:180px">Debit</th><th class="num" style="width:180px">Credit</th></tr></thead>
+        <tbody>
+          {% for a in accounts %}
+          {% set v = existing.get(a.id, 0) %}
+          <tr>
+            <td class="mono">{{ a.code }}<input type="hidden" name="account_id" value="{{ a.id }}"></td>
+            <td>{{ a.name }}</td>
+            <td class="small">{{ a.type|title }}</td>
+            <td><input class="num obdr" name="debit" value="{{ v|naira if v > 0 else '' }}" placeholder="0.00"></td>
+            <td><input class="num obcr" name="credit" value="{{ (-v)|naira if v < 0 else '' }}" placeholder="0.00"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr><td colspan="3" class="right">Totals</td>
+            <td class="num" id="obtd">—</td><td class="num" id="obtc">—</td></tr>
+          <tr><td colspan="3" class="right">To Opening Balance Equity</td>
+            <td colspan="2" class="num" id="obdiff">—</td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Post the opening balances</button>
+    <a class="btn" href="/journals">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var SYM = document.body.getAttribute('data-symbol') || '₦';
+  function num(v) { var n = parseFloat(String(v || '0').replace(/,/g, '')); return isNaN(n) ? 0 : n; }
+  function fmt(n) { return SYM + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function calc() {
+    var dr = 0, cr = 0;
+    document.querySelectorAll('.obdr').forEach(function (i) { dr += num(i.value); });
+    document.querySelectorAll('.obcr').forEach(function (i) { cr += num(i.value); });
+    document.getElementById('obtd').textContent = fmt(dr);
+    document.getElementById('obtc').textContent = fmt(cr);
+    var d = Math.round((dr - cr) * 100) / 100;
+    document.getElementById('obdiff').textContent =
+      d === 0 ? 'Nothing — the balances agree' : fmt(d) + (d > 0 ? ' credit' : ' debit');
+  }
+  document.querySelectorAll('.obdr, .obcr').forEach(function (i) {
+    i.addEventListener('input', function () {
+      var row = i.closest('tr');
+      var other = i.classList.contains('obdr') ? row.querySelector('.obcr') : row.querySelector('.obdr');
+      if (num(i.value) && other) other.value = '';
+      calc();
+    });
+  });
+  calc();
+});
+</script>
+{% endblock %}

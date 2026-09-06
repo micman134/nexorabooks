@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter %}
+{% block title %}Trial balance{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Trial balance</h1>
+    <div class="muted small">{{ company.name }} · {{ 'as at ' ~ end|dt if cumulative else start|dt ~ ' to ' ~ end|dt }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="?period={{ preset }}&start={{ start }}&end={{ end }}&cumulative={{ cumulative|int }}&format=csv">Export CSV</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+{{ period_filter(preset, start, end,
+   '<div class="field"><label>Basis</label><select name="cumulative"><option value="1"' ~ (' selected' if cumulative else '') ~ '>Cumulative to date</option><option value="0"' ~ ('' if cumulative else ' selected') ~ '>Movement in the period</option></select></div>') }}
+
+{% if total_debit == total_credit %}
+<div class="alert alert-success">Debits equal credits at {{ total_debit|money }}. The books balance.</div>
+{% else %}
+<div class="alert alert-danger">Debits are {{ total_debit|money }} against credits of {{ total_credit|money }} —
+  a difference of {{ (total_debit - total_credit)|money }}. Please report this; it should never happen.</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th style="width:90px">Code</th><th>Account</th><th>Type</th>
+        <th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="mono">{{ r.account.code }}</td>
+          <td><a href="/reports/general-ledger?account={{ r.account.id }}&start={{ start }}&end={{ end }}">{{ r.account.name }}</a></td>
+          <td class="small">{{ r.account.type|title }}</td>
+          <td class="num">{{ r.net_debit|money if r.net_debit else '' }}</td>
+          <td class="num">{{ r.net_credit|money if r.net_credit else '' }}</td>
+        </tr>
+        {% else %}<tr><td colspan="5" class="empty">Nothing posted in this period.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr class="grand"><td colspan="3">Totals</td>
+        <td class="num">{{ total_debit|money }}</td><td class="num">{{ total_credit|money }}</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}

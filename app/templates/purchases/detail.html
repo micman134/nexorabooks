@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, void_button, attachments_panel %}
+{% block title %}{{ bill.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ label }} {{ bill.number }} {{ status_badge(bill.status) }}</h1>
+    <div class="muted small">{{ bill.contact.name }} · {{ bill.date|dt }}
+      {% if bill.due_date %} · due {{ bill.due_date|dt }}{% endif %}
+      {% if bill.vendor_invoice_no %} · their ref {{ bill.vendor_invoice_no }}{% endif %}</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/purchases/{{ slug }}/{{ bill.id }}/print" target="_blank">Print</a>
+    {% if bill.status == 'DRAFT' and can(user, 'entry') %}
+      <a class="btn" href="/purchases/{{ slug }}/{{ bill.id }}/edit">Edit</a>
+      {% if bill.doc_type != 'PO' %}
+      <form method="post" action="/purchases/{{ slug }}/{{ bill.id }}/post" style="display:inline">
+        <button class="btn btn-primary" type="submit">Post to the ledger</button></form>
+      {% endif %}
+      <form method="post" action="/purchases/{{ slug }}/{{ bill.id }}/delete" style="display:inline"
+            onsubmit="return confirm('Delete this draft?')">
+        <button class="btn btn-danger" type="submit">Delete draft</button></form>
+    {% endif %}
+    {% if bill.status in ('POSTED','PART_PAID') and bill.doc_type == 'BILL' and can(user, 'entry') %}
+      <a class="btn btn-primary" href="/payments/new?bill={{ bill.id }}">Pay this bill</a>
+      <form method="post" action="/purchases/bills/{{ bill.id }}/debit-note" style="display:inline">
+        <button class="btn" type="submit">Raise a debit note</button></form>
+    {% endif %}
+    {% if bill.status not in ('DRAFT','VOID') and can(user, 'void') %}{{ void_button('/purchases/' ~ slug ~ '/' ~ bill.id ~ '/void') }}{% endif %}
+  </div>
+</div>
+
+{% if bill.status == 'DRAFT' %}
+<div class="alert alert-info">This is a draft. Nothing has been posted to the ledger yet.</div>
+{% elif bill.status == 'VOID' %}
+<div class="alert alert-warning">This document has been voided and reversed in the ledger.</div>
+{% endif %}
+
+{% if bill.wht_total and bill.status in ('POSTED','PART_PAID') %}
+<div class="alert alert-info">
+  When you pay this bill, withhold {{ bill.wht_total|money }} and pay the supplier
+  {{ (bill.balance_due - bill.wht_total)|money }}. {{ wht_note }} The tax withheld is due to the
+  National Revenue Service by the 21st of the following month.
+</div>
+{% endif %}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Total</div><div class="value">{{ bill.total|money }}</div>
+    <div class="sub">Net {{ bill.subtotal|money }} + VAT {{ bill.vat_total|money }}</div></div>
+  <div class="stat"><div class="label">Settled</div><div class="value">{{ bill.amount_paid|money }}</div></div>
+  <div class="stat accent"><div class="label">Outstanding</div>
+    <div class="value">{{ bill.balance_due|money if bill.status in ('POSTED','PART_PAID') else '—' }}</div></div>
+  {% if bill.wht_total %}
+  <div class="stat warn"><div class="label">WHT to withhold</div><div class="value">{{ bill.wht_total|money }}</div>
+    <div class="sub">{{ bill.wht_code.name if bill.wht_code }}</div></div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Lines</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>#</th><th>Description</th><th>Account</th><th class="num">Qty</th>
+        <th class="num">Unit cost</th><th>VAT</th><th class="num">Net</th><th class="num">VAT</th></tr></thead>
+      <tbody>
+        {% for l in bill.lines %}
+        <tr>
+          <td>{{ l.line_no }}</td>
+          <td>{{ l.description }}{% if l.item %}<div class="muted small">{{ l.item.code }}</div>{% endif %}</td>
+          <td class="small">{{ (l.account.code ~ ' ' ~ l.account.name) if l.account else '—' }}</td>
+          <td class="num">{{ l.qty|qty }}</td>
+          <td class="num">{{ l.unit_price|money }}</td>
+          <td class="small">{{ l.tax_code.code if l.tax_code else '—' }}</td>
+          <td class="num">{{ l.net|money }}</td>
+          <td class="num">{{ l.vat_amount|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="6">Subtotal</td><td class="num">{{ bill.subtotal|money }}</td><td class="num">{{ bill.vat_total|money }}</td></tr>
+        <tr><td colspan="7">Total</td><td class="num">{{ bill.total|money }}</td></tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+{% if allocations %}
+<div class="card">
+  <div class="card-head"><h3>Payments made</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Date</th><th>Payment</th><th class="num">Cash</th><th class="num">WHT withheld</th><th class="num">Discount</th></tr></thead>
+      <tbody>
+        {% for a in allocations %}
+        <tr><td>{{ a.payment.date|dt }}</td>
+          <td><a href="/payments/{{ a.payment.id }}">{{ a.payment.number }}</a>
+            {% if a.payment.status == 'VOID' %}<span class="badge badge-void">void</span>{% endif %}</td>
+          <td class="num">{{ a.amount|money }}</td><td class="num">{{ a.wht_amount|money }}</td>
+          <td class="num">{{ a.discount|money }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if entry %}
+<div class="card">
+  <div class="card-head"><h3>Ledger posting</h3>
+    <div class="actions"><a class="btn btn-sm" href="/journals/{{ entry.id }}">Journal {{ entry.number }}</a></div></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Account</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+      <tbody>
+        {% for l in entry.lines %}
+        <tr><td>{{ l.account.code }} — {{ l.account.name }}</td><td class="small">{{ l.memo }}</td>
+          <td class="num">{{ l.debit|money if l.debit else '' }}</td>
+          <td class="num">{{ l.credit|money if l.credit else '' }}</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="2">Totals</td><td class="num">{{ entry.total_debit|money }}</td>
+        <td class="num">{{ entry.total_credit|money }}</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if bill.memo %}<div class="card"><div class="card-body"><h3>Note</h3><p>{{ bill.memo }}</p></div></div>{% endif %}
+{{ attachments_panel(user, bill.doc_type, bill.id, files) }}
+
+{% endblock %}

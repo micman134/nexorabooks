@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download Nexora Books</title>
+<meta name="description" content="Double-entry accounting for Windows. Your books stay on your own computer.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+<style>
+:root{
+  --paper:#F6F8F6; --surface:#FFFFFF; --sunk:#EDF1EE; --rule:#D3DCD7;
+  --ink:#101A14; --ink-soft:#4C5B53; --ink-faint:#7C8A83;
+  --accent:#1B5E3F; --accent-ink:#14432D; --accent-soft:#E2EEE7;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0B120E; --surface:#121B16; --sunk:#17221C; --rule:#26332B;
+    --ink:#E4EDE7; --ink-soft:#9DAEA4; --ink-faint:#74857B;
+    --accent:#5FBF8D; --accent-ink:#8FD9B2; --accent-soft:#12271C;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-size:16.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:58rem;margin:0 auto;padding:clamp(2rem,5vw,4rem) clamp(1.1rem,4vw,2.5rem) 5rem}
+h1{font-family:Newsreader,Georgia,serif;font-weight:500;
+  font-size:clamp(2.2rem,6vw,3.4rem);line-height:1.08;letter-spacing:-.015em;
+  margin:0 0 .8rem;text-wrap:balance}
+h2{font-family:Newsreader,Georgia,serif;font-weight:500;
+  font-size:clamp(1.4rem,3.2vw,1.85rem);line-height:1.2;margin:0 0 .9rem;text-wrap:balance}
+h3{font-size:1.02rem;font-weight:600;margin:0 0 .3rem}
+p{margin:0 0 1rem;max-width:62ch}
+.sub{font-family:Newsreader,Georgia,serif;font-size:clamp(1.1rem,2.4vw,1.3rem);
+  color:var(--ink-soft);max-width:44ch;margin-bottom:2rem}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-faint);margin:0 0 1rem}
+.mono{font-family:"IBM Plex Mono",monospace}
+a{color:var(--accent-ink)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+
+.get{background:var(--surface);border:1px solid var(--rule);border-radius:10px;
+  padding:clamp(1.3rem,3vw,2rem);margin:0 0 2.5rem}
+.btn{display:inline-flex;align-items:center;gap:.6rem;background:var(--accent);
+  color:#fff;text-decoration:none;font-weight:600;font-size:1.1rem;
+  padding:.9rem 1.6rem;border-radius:8px;border:none}
+:root:not([data-theme="light"]) .btn{color:#08130D}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn{color:#08130D}}
+.btn:hover{filter:brightness(1.08)}
+.btn:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.meta{margin:.9rem 0 0;font-size:.9rem;color:var(--ink-soft)}
+.checksum{margin-top:.8rem;font-size:.78rem;color:var(--ink-faint);
+  word-break:break-all;font-family:"IBM Plex Mono",monospace}
+
+.steps{list-style:none;counter-reset:s;margin:0;padding:0}
+.steps li{counter-increment:s;display:grid;grid-template-columns:2.2rem 1fr;gap:.9rem;
+  padding:1rem 0;border-bottom:1px solid var(--rule)}
+.steps li:last-child{border-bottom:none}
+.steps li::before{content:counter(s);font-family:"IBM Plex Mono",monospace;
+  font-size:.95rem;color:var(--accent);padding-top:.15rem}
+.steps p{margin:.15rem 0 0;font-size:.95rem;color:var(--ink-soft)}
+
+.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));margin:1.2rem 0 0}
+.tile{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:1.1rem}
+.tile p{font-size:.92rem;color:var(--ink-soft);margin:0}
+
+section{margin-top:3rem;padding-top:2rem;border-top:1px solid var(--rule)}
+section:first-of-type{border-top:none}
+
+.note{background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
+  padding:1rem 1.15rem;font-size:.92rem;color:var(--ink-soft);margin:1.2rem 0 0}
+.note strong{color:var(--ink)}
+
+dl.faq{margin:0}
+dl.faq dt{font-weight:600;margin-top:1.3rem}
+dl.faq dd{margin:.3rem 0 0;color:var(--ink-soft);max-width:62ch}
+
+footer{margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--rule);
+  font-size:.87rem;color:var(--ink-faint)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Nexora Books for Windows</p>
+  <h1>Your accounts, on your own computer.</h1>
+  <p class="sub">Double-entry bookkeeping, payroll, invoicing and stock — installed on one
+    machine in your office, with nothing sent anywhere.</p>
+
+  <div class="get">
+    <!-- CHANGE: point this at wherever you upload the installer -->
+    <a class="btn" href="NexoraBooks-Setup.exe" download>
+      Download for Windows
+    </a>
+    <!-- CHANGE: version and file size, every time you publish -->
+    <p class="meta">Version 2.11.9 · Windows 10 and 11, 64-bit<br>
+      Free for 30 days. Nothing to sign up for, no card, no account.</p>
+    <!-- CHANGE: run  certutil -hashfile <file> SHA256  and paste the result -->
+    <p class="checksum">SHA-256: 0000000000000000000000000000000000000000000000000000000000000000</p>
+  </div>
+
+  <section>
+    <h2>Installing it</h2>
+    <ol class="steps">
+      <li>
+        <div>
+          <h3>Download the file and open it</h3>
+          <p>It lands in your Downloads folder. Double-click it.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Windows may ask whether you are sure</h3>
+          <p>Choose <strong>More info</strong>, then <strong>Run anyway</strong>. Windows
+            says this about any program it has not seen many times before.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Allow it on your private network</h3>
+          <p>A firewall box appears. Tick <strong>Private networks</strong> and allow it —
+            without that, nobody else in your office can reach the books.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Sign in and change the password</h3>
+          <p>Username <span class="mono">admin</span>, password
+            <span class="mono">admin123</span>. It makes you choose a new one straight
+            away.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Set your country and currency</h3>
+          <p>Two minutes, on the first screen. Choose the currency carefully — it is
+            fixed once you post your first transaction.</p>
+        </div>
+      </li>
+    </ol>
+    <div class="note">
+      <strong>Nothing else to install.</strong> No database to set up, no account to
+      create, no internet connection needed after the download.
+    </div>
+  </section>
+
+  <section>
+    <h2>Your staff do not install anything</h2>
+    <p>Nexora Books runs on one computer and serves everybody else. Your staff open a
+      web address in Chrome, Edge or Firefox and sign in with their own username. Give
+      each person their own account — a shared login makes the audit trail worthless.</p>
+    <div class="grid">
+      <div class="tile">
+        <h3>In the same office</h3>
+        <p>They use an address like <span class="mono">192.168.1.20:8756</span>, shown
+          on the Access screen. Bookmark it once and it is done.</p>
+      </div>
+      <div class="tile">
+        <h3>In another state or country</h3>
+        <p>Join their computers to yours with a free private-network tool such as
+          Tailscale. Your books never leave your machine. The Access screen walks you
+          through it.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What you get</h2>
+    <div class="grid">
+      <div class="tile"><h3>Proper double entry</h3>
+        <p>Every figure lands in the ledger. Posted documents are voided, never quietly
+          edited, so the audit trail holds.</p></div>
+      <div class="tile"><h3>Invoicing and email</h3>
+        <p>Send invoices, quotations, statements and payslips as PDFs from your own
+          email address, with your bank details printed on them.</p></div>
+      <div class="tile"><h3>Payroll</h3>
+        <p>Nigerian PAYE and pension built in and checkable; bands you can enter
+          yourself anywhere else.</p></div>
+      <div class="tile"><h3>Bank statements</h3>
+        <p>Import CSV, Excel, OFX or PDF straight from the bank and match against what
+          is outstanding.</p></div>
+      <div class="tile"><h3>Stock, jobs and assets</h3>
+        <p>Items and locations, costing per job, fixed assets and depreciation, and a
+          till for over the counter.</p></div>
+      <div class="tile"><h3>Your data, always</h3>
+        <p>One file per company on your own disk. Export everything whenever you like,
+          licence or no licence.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Questions people ask first</h2>
+    <dl class="faq">
+      <dt>Where are my books kept?</dt>
+      <dd>On your computer, in your own Windows profile. Not on our servers — we do not
+        have a copy and could not produce one if asked.</dd>
+
+      <dt>What happens after 30 days?</dt>
+      <dd>You buy a licence for the number of people who sign in. If you do not, every
+        screen still opens, every report still prints and exports, and you can take a
+        full backup. What pauses is entering new transactions.</dd>
+
+      <dt>Does it need the internet?</dt>
+      <dd>Only to email an invoice. Everything else works with the connection unplugged.</dd>
+
+      <dt>What if my computer dies?</dt>
+      <dd>Restore your backup on the new machine and tell us the new machine code — a
+        replacement licence is free. Set the automatic backup to a flash drive or a
+        synced folder on your first day.</dd>
+
+      <dt>Can my accountant see it?</dt>
+      <dd>Give them their own sign-in, or send them the exports. Everything comes out
+        as PDF or spreadsheet.</dd>
+
+      <dt>What does it cost?</dt>
+      <!-- CHANGE: your real price -->
+      <dd>From ₦10,000 per person a month, billed a year at a time, and cheaper the
+        more of you there are — ₦9,000 each from five people, ₦8,000 from ten. The
+        exact figure for your size is shown inside the software under
+        Settings › Licence, before you pay anything.</dd>
+    </dl>
+  </section>
+
+  <footer>
+    <!-- CHANGE: your contact details -->
+    <p>Questions before you download?
+      <a href="mailto:support@tavonetworks.tech">support@tavonetworks.tech</a>
+      · WhatsApp +234 808 334 2954</p>
+    <p>Nexora Books is published by Tavo Networks Limited (RC 8237044), Lekki, Lagos.<br>
+      Windows 10 and 11, 64-bit · 30-day trial, then a licence per user</p>
+  </footer>
+
+</div>
+</body>
+</html>

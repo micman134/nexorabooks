@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}{{ 'New item' if is_new else item.name }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>{{ 'New item' if is_new else 'Edit ' ~ item.name }}</h1></div>
+
+<form method="post" action="/inventory/save" style="max-width:900px">
+  {% if not is_new %}<input type="hidden" name="id" value="{{ item.id }}">{% endif %}
+
+  <fieldset>
+    <legend>The item</legend>
+    <div class="field-row">
+      <div class="field"><label for="n">Name *</label><input id="n" name="name" value="{{ item.name }}" required autofocus></div>
+      <div class="field"><label for="c">Code</label><input id="c" name="code" value="{{ item.code }}" placeholder="Assigned automatically"></div>
+      <div class="field"><label for="t">Type</label>
+        <select id="t" name="item_type">
+          <option value="STOCK" {{ 'selected' if item.item_type == 'STOCK' }}>Stock item — I hold quantities</option>
+          <option value="SERVICE" {{ 'selected' if item.item_type == 'SERVICE' }}>Service — nothing to count</option>
+        </select></div>
+      <div class="field"><label for="u">Unit</label><input id="u" name="unit" value="{{ item.unit }}" placeholder="each, kg, litre, hour"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="cat">Category</label><input id="cat" name="category" value="{{ item.category }}"></div>
+      <div class="field"><label for="bc">Barcode</label><input id="bc" name="barcode" value="{{ item.barcode }}"></div>
+      <div class="field"><label for="rl">Reorder level</label><input id="rl" class="num" name="reorder_level" value="{{ item.reorder_level|qty if item.reorder_level else '' }}"></div>
+    </div>
+    <div class="field"><label for="de">Description</label><textarea id="de" name="description">{{ item.description }}</textarea></div>
+    <div class="field-row">
+      <div class="check"><input type="checkbox" id="ts" name="track_stock" value="1" {{ 'checked' if item.track_stock or is_new }}>
+        <label for="ts">Track stock quantities and value</label></div>
+      <div class="check"><input type="checkbox" id="ia" name="is_active" value="1" {{ 'checked' if item.is_active or is_new }}>
+        <label for="ia">Active</label></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>How it is tracked</legend>
+    <div class="field-row">
+      <div class="field" style="flex:2"><label for="cm">Costing</label>
+        <select id="cm" name="costing_method" {{ 'disabled' if item.qty_on_hand or item.stock_value }}>
+          {% for value, label in costing_methods %}
+          <option value="{{ value }}" {{ 'selected' if item.costing_method == value }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% if item.qty_on_hand or item.stock_value %}
+        <input type="hidden" name="costing_method" value="{{ item.costing_method }}">
+        <div class="hint">Locked while there is stock on hand — changing it would move the
+          value of what is there without an entry to explain it.</div>
+        {% else %}
+        <div class="hint">Weighted average suits cement, sand and anything interchangeable.
+          First in, first out suits goods whose price moves and whose age matters.</div>
+        {% endif %}
+      </div>
+      <div class="field"><label for="sl">Shelf life (days)</label>
+        <input id="sl" class="num" name="shelf_life_days"
+               value="{{ item.shelf_life_days or '' }}" placeholder="none">
+        <div class="hint">Sets the expiry date on each batch received.</div></div>
+      <div class="field"><label for="wm">Warranty (months)</label>
+        <input id="wm" class="num" name="warranty_months"
+               value="{{ item.warranty_months or '' }}" placeholder="none">
+        <div class="hint">Recorded against each serial number sold.</div></div>
+    </div>
+    <div class="field-row">
+      <div class="check"><input type="checkbox" id="tb" name="track_batches" value="1"
+                                {{ 'checked' if item.track_batches }}>
+        <label for="tb">Track batch or lot numbers</label></div>
+      <div class="check"><input type="checkbox" id="tsn" name="track_serials" value="1"
+                                {{ 'checked' if item.track_serials }}>
+        <label for="tsn">Track individual serial numbers</label></div>
+    </div>
+    <div class="hint">
+      Batches for anything with an expiry date or a production run — cement, paint, chemicals.
+      Serial numbers for machines sold with a warranty — generators, pumps, plant.
+      Most items need neither.
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Selling</legend>
+    <div class="field-row">
+      <div class="field"><label for="sp">Sale price (before VAT)</label>
+        <input id="sp" class="num" name="sale_price" value="{{ item.sale_price|naira if item.sale_price else '' }}" placeholder="0.00"></div>
+      <div class="field"><label for="sa">Revenue account</label>
+        <select id="sa" name="sales_account_id">
+          {% for a in income_accounts %}<option value="{{ a.id }}" {{ 'selected' if item.sales_account_id == a.id }}>{{ a.code }} — {{ a.name }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="stc">VAT on sale</label>
+        <select id="stc" name="sale_tax_code_id">
+          <option value="">None</option>
+          {% for t in vat_codes %}<option value="{{ t.id }}" {{ 'selected' if item.sale_tax_code_id == t.id }}>{{ t.name }}</option>{% endfor %}
+        </select></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Buying and costing</legend>
+    <div class="field-row">
+      <div class="field"><label for="pp">Last / expected cost</label>
+        <input id="pp" class="num" name="purchase_price" value="{{ item.purchase_price|naira if item.purchase_price else '' }}" placeholder="0.00"></div>
+      <div class="field"><label for="pa">Purchase / expense account</label>
+        <select id="pa" name="purchase_account_id">
+          <option value="">—</option>
+          {% for a in expense_accounts %}<option value="{{ a.id }}" {{ 'selected' if item.purchase_account_id == a.id }}>{{ a.code }} — {{ a.name }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="ptc">VAT on purchase</label>
+        <select id="ptc" name="purchase_tax_code_id">
+          <option value="">None</option>
+          {% for t in vat_codes %}<option value="{{ t.id }}" {{ 'selected' if item.purchase_tax_code_id == t.id }}>{{ t.name }}</option>{% endfor %}
+        </select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="ina">Inventory account</label>
+        <select id="ina" name="inventory_account_id">
+          <option value="">—</option>
+          {% for a in asset_accounts %}<option value="{{ a.id }}" {{ 'selected' if item.inventory_account_id == a.id }}>{{ a.code }} — {{ a.name }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="ca">Cost of sales account</label>
+        <select id="ca" name="cogs_account_id">
+          <option value="">—</option>
+          {% for a in expense_accounts %}<option value="{{ a.id }}" {{ 'selected' if item.cogs_account_id == a.id }}>{{ a.code }} — {{ a.name }}</option>{% endfor %}
+        </select></div>
+    </div>
+    <p class="hint">Stock is valued at weighted average cost. Buying updates the average; selling releases it to cost of sales automatically.</p>
+  </fieldset>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn" href="{{ '/inventory' if is_new else '/inventory/' ~ item.id }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

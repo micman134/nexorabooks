@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% from "_macros.html" import letterhead %}
+{% block title %}{{ inv.number }}{% endblock %}
+{% block content %}
+<div class="page-head no-print">
+  <h1>{{ label }} {{ inv.number }}</h1>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+    <a class="btn" href="/sales/{{ request.url.path.split('/')[2] }}/{{ inv.id }}/pdf">Download PDF</a>
+    <a class="btn" href="javascript:history.back()">Back</a>
+  </div>
+</div>
+
+<div class="doc">
+  <div class="doc-head">
+    {{ letterhead(company) }}
+    <div class="doc-title">
+      <h1>{{ label }}</h1>
+      <table style="margin-left:auto; font-size:13px">
+        <tr><td class="muted right" style="padding-right:.5rem">Number</td><td class="strong">{{ inv.number }}</td></tr>
+        <tr><td class="muted right" style="padding-right:.5rem">Date</td><td>{{ inv.date|dt }}</td></tr>
+        {% if inv.due_date %}<tr><td class="muted right" style="padding-right:.5rem">{{ 'Valid until' if inv.doc_type == 'QUOTE' else 'Due' }}</td><td>{{ inv.due_date|dt }}</td></tr>{% endif %}
+        {% if inv.po_number %}<tr><td class="muted right" style="padding-right:.5rem">Your PO</td><td>{{ inv.po_number }}</td></tr>{% endif %}
+      </table>
+    </div>
+  </div>
+
+  <div class="doc-parties">
+    <div>
+      <div class="lbl">{{ 'Quotation for' if inv.doc_type == 'QUOTE' else 'Bill to' }}</div>
+      <strong>{{ inv.contact.name }}</strong><br>
+      <span class="muted small">
+        {% if inv.contact.contact_person %}Attn: {{ inv.contact.contact_person }}<br>{% endif %}
+        {{ inv.contact.address }}
+        {% if inv.contact.city %}<br>{{ inv.contact.city }}{{ ', ' ~ inv.contact.state if inv.contact.state }}{% endif %}
+        {% if inv.contact.tin %}<br>TIN: {{ inv.contact.tin }}{% endif %}
+      </span>
+    </div>
+    <div class="right">
+      <div class="lbl">{{ 'Total' if inv.doc_type == 'QUOTE' else 'Amount due' }}</div>
+      <div style="font-size:1.7rem; font-weight:700; color:var(--green-dark)">
+        {{ (inv.total if inv.doc_type == 'QUOTE' else inv.balance_due)|money }}</div>
+    </div>
+  </div>
+
+  <table class="data">
+    <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th>
+      {% if inv.discount_total %}<th class="num">Disc</th>{% endif %}
+      <th class="num">VAT</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      {% for l in inv.lines %}
+      <tr>
+        <td>{{ l.description }}</td>
+        <td class="num">{{ l.qty|qty }}{% if l.item %} {{ l.item.unit }}{% endif %}</td>
+        <td class="num">{{ l.unit_price|money }}</td>
+        {% if inv.discount_total %}<td class="num">{{ l.discount_pct }}%</td>{% endif %}
+        <td class="num">{{ l.vat_amount|money }}</td>
+        <td class="num">{{ l.net|money }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="totals" style="margin-top:1rem">
+    <table>
+      <tr><td>Subtotal</td><td>{{ inv.subtotal|money }}</td></tr>
+      {% if inv.discount_total %}<tr><td>Discount</td><td>({{ inv.discount_total|money }})</td></tr>{% endif %}
+      <tr><td>VAT{% if company.is_vat_registered %} @ {{ company.vat_rate }}%{% endif %}</td><td>{{ inv.vat_total|money }}</td></tr>
+      <tr class="grand"><td>Total</td><td>{{ inv.total|money }}</td></tr>
+      {% if inv.vat_withheld_expected %}
+      <tr><td class="muted">Less VAT withheld at source</td>
+        <td class="muted">({{ inv.vat_withheld_expected|money }})</td></tr>
+      {% endif %}
+      {% if inv.wht_total %}
+      <tr><td class="muted">Less WHT to be deducted</td><td class="muted">({{ inv.wht_total|money }})</td></tr>
+      {% endif %}
+      {% if inv.wht_total or inv.vat_withheld_expected %}
+      <tr class="strong"><td>Net payable</td><td>{{ inv.expected_cash|money }}</td></tr>
+      {% endif %}
+      {% if inv.amount_paid %}
+      <tr><td>Already paid</td><td>({{ inv.amount_paid|money }})</td></tr>
+      <tr class="grand"><td>Balance due</td><td>{{ inv.balance_due|money }}</td></tr>
+      {% endif %}
+    </table>
+  </div>
+
+  {% if inv.wht_total %}
+  <p class="hint" style="margin-top:1rem">
+    Withholding tax of {{ inv.wht_total|money }} ({{ inv.wht_code.rate }}%) applies to this supply under
+    {{ inv.wht_code.name|lower }}. Please forward the WHT credit note after remittance.
+  </p>
+  {% endif %}
+
+  {% if inv.vat_withheld_expected %}
+  <p class="hint" style="margin-top:.5rem">
+    VAT of {{ inv.vat_withheld_expected|money }} on this supply is to be withheld at source and
+    remitted to the Nigeria Revenue Service. Please forward the VAT credit note after remittance.
+  </p>
+  {% endif %}
+
+  {% if inv.memo %}<p style="margin-top:1rem">{{ inv.memo }}</p>{% endif %}
+
+  <div class="doc-foot">
+    {% if inv.terms %}<p>{{ inv.terms }}</p>{% endif %}
+    {% if company.email or company.phone %}
+    <p>Questions about this {{ label|lower }}? Contact us on {{ company.phone }}{% if company.email %} or {{ company.email }}{% endif %}.</p>
+    {% endif %}
+    <p>{{ company.invoice_footer }}</p>
+  </div>
+</div>
+{% endblock %}

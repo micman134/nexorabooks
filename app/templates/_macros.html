@@ -1,0 +1,109 @@
+{% macro period_filter(preset, start, end, extra='') %}
+<form class="filters no-print" method="get">
+  {{ extra|safe }}
+  <div class="field">
+    <label>Period</label>
+    <select name="period" onchange="this.form.start.value=''; this.form.end.value=''; this.form.submit()">
+      <option value="year" {{ 'selected' if preset == 'year' }}>This financial year</option>
+      <option value="quarter" {{ 'selected' if preset == 'quarter' }}>This quarter</option>
+      <option value="month" {{ 'selected' if preset == 'month' }}>This month</option>
+      <option value="last_month" {{ 'selected' if preset == 'last_month' }}>Last month</option>
+      <option value="last_year" {{ 'selected' if preset == 'last_year' }}>Last financial year</option>
+      <option value="custom" {{ 'selected' if preset == 'custom' }}>Custom dates</option>
+    </select>
+  </div>
+  <div class="field"><label>From</label><input type="date" name="start" value="{{ start }}"></div>
+  <div class="field"><label>To</label><input type="date" name="end" value="{{ end }}"></div>
+  <button class="btn btn-primary" type="submit">Apply</button>
+</form>
+{% endmacro %}
+
+{% macro status_badge(status) %}
+<span class="badge {{ status|status_class }}">{{ status.replace('_', ' ')|lower }}</span>
+{% endmacro %}
+
+{% macro void_button(action, label='Void') %}
+<form method="post" action="{{ action }}" class="no-print"
+      onsubmit="return confirm('This will reverse the entry in the ledger. The original stays on record. Continue?')">
+  <input type="hidden" name="void_date" value="{{ today().isoformat() }}">
+  <button class="btn btn-danger btn-sm" type="submit">{{ label }}</button>
+</form>
+{% endmacro %}
+
+{% macro money_cell(value) %}
+<td class="num {{ 'neg' if value < 0 }}">{{ value|money }}</td>
+{% endmacro %}
+
+{# The letterhead block used at the top of every printed document. #}
+{% macro letterhead(company) %}
+<div class="co">
+  {% if company.logo_file %}
+    <img src="/company-logo" alt="{{ company.name }}" class="doc-logo">
+  {% endif %}
+  <h2>{{ company.name }}</h2>
+  <div class="muted small">
+    {% if company.address %}{{ company.address }}<br>{% endif %}
+    {% if company.city %}{{ company.city }}{{ ', ' ~ company.state if company.state }}<br>{% endif %}
+    {% if company.phone %}{{ company.phone }}{% endif %}{% if company.email %} · {{ company.email }}{% endif %}
+    {% if company.website %}<br>{{ company.website }}{% endif %}
+    {% if company.tin %}<br>TIN: {{ company.tin }}{% endif %}
+    {% if company.vat_reg_no %} · VAT: {{ company.vat_reg_no }}{% endif %}
+    {% if company.rc_number %}<br>RC: {{ company.rc_number }}{% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{# Paperwork attached to a record: receipts, delivery notes, WHT credit notes. #}
+{% macro attachments_panel(user, doc_type, doc_id, files, can_edit=True) %}
+<div class="card no-print">
+  <div class="card-head">
+    <h3>Attachments{% if files %} <span class="muted">({{ files|length }})</span>{% endif %}</h3>
+  </div>
+  {% if files %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>File</th><th>Note</th><th class="num">Size</th><th>Added</th><th></th></tr></thead>
+      <tbody>
+        {% for f in files %}
+        <tr>
+          <td>
+            <a href="/attachments/{{ f.id }}" target="_blank">{{ f.filename }}</a>
+            {% if f.is_image %}<span class="badge badge-open">image</span>{% endif %}
+          </td>
+          <td class="small muted">{{ f.note }}</td>
+          <td class="num small">{{ f.size_label }}</td>
+          <td class="small muted">{{ f.uploaded_at|dt('%d %b %Y') }}{% if f.uploaded_by_name %} · {{ f.uploaded_by_name }}{% endif %}</td>
+          <td class="right">
+            {% if can_edit and can(user, 'entry') %}
+            <form method="post" action="/attachments/{{ f.id }}/delete" style="display:inline"
+                  onsubmit="return confirm('Remove {{ f.filename }}? The file is deleted from this computer.')">
+              <button class="btn btn-sm btn-danger" type="submit">Remove</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% if can_edit and can(user, 'entry') %}
+  <form class="card-body" method="post" action="/attachments/upload" enctype="multipart/form-data">
+    <input type="hidden" name="doc_type" value="{{ doc_type }}">
+    <input type="hidden" name="doc_id" value="{{ doc_id }}">
+    <div class="field-row">
+      <div class="field"><label for="af{{ doc_id }}">Attach a file</label>
+        <input id="af{{ doc_id }}" type="file" name="files" multiple required
+               accept=".pdf,.png,.jpg,.jpeg,.gif,.xlsx,.docx,.pptx,.csv,.txt,.doc,.xls">
+        <div class="hint">PDF, photo, Word, Excel or CSV — up to 10 MB each. You can pick several at once.</div>
+      </div>
+      <div class="field"><label for="an{{ doc_id }}">What is it?</label>
+        <input id="an{{ doc_id }}" name="note" placeholder="e.g. WHT credit note, delivery note signed"></div>
+    </div>
+    <button class="btn" type="submit">Attach</button>
+  </form>
+  {% elif not files %}
+  <div class="empty">Nothing attached.</div>
+  {% endif %}
+</div>
+{% endmacro %}

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Balance sheet{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Balance sheet</h1>
+    <div class="muted small">{{ company.name }} · as at {{ bs.as_of|dt }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="?end={{ bs.as_of }}&format=csv">Export CSV</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<form class="filters no-print" method="get">
+  <div class="field"><label>As at</label><input type="date" name="end" value="{{ bs.as_of }}"></div>
+  <button class="btn" type="submit">Apply</button>
+</form>
+
+{% if bs.balances_ok %}
+<div class="alert alert-success">
+  Assets of {{ bs.total_assets|money }} equal liabilities plus equity. The balance sheet balances.
+</div>
+{% else %}
+<div class="alert alert-danger">
+  Assets are {{ bs.total_assets|money }} but liabilities plus equity come to
+  {{ (bs.total_liabilities + bs.total_equity)|money }} — out by {{ bs.difference|money }}.
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Assets</h2></div>
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          {% for sec in [bs.current_assets, bs.fixed_assets] %}
+          <tr class="section"><td colspan="2">{{ sec.title }}</td></tr>
+          {% for acc, v in sec.rows %}
+          <tr><td class="indent"><a href="/reports/general-ledger?account={{ acc.id }}">{{ acc.code }} — {{ acc.name }}</a></td>
+            <td class="num {{ 'neg' if v < 0 }}">{{ v|money }}</td></tr>
+          {% else %}<tr><td class="indent muted">None</td><td class="num">—</td></tr>{% endfor %}
+          <tr class="total"><td>Total {{ sec.title|lower }}</td><td class="num">{{ sec.total|money }}</td></tr>
+          {% endfor %}
+          <tr class="grand"><td>Total assets</td><td class="num">{{ bs.total_assets|money }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Liabilities and equity</h2></div>
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          {% for sec in [bs.current_liabilities, bs.long_term_liabilities] %}
+          <tr class="section"><td colspan="2">{{ sec.title }}</td></tr>
+          {% for acc, v in sec.rows %}
+          <tr><td class="indent"><a href="/reports/general-ledger?account={{ acc.id }}">{{ acc.code }} — {{ acc.name }}</a></td>
+            <td class="num {{ 'neg' if v < 0 }}">{{ v|money }}</td></tr>
+          {% else %}<tr><td class="indent muted">None</td><td class="num">—</td></tr>{% endfor %}
+          <tr class="total"><td>Total {{ sec.title|lower }}</td><td class="num">{{ sec.total|money }}</td></tr>
+          {% endfor %}
+          <tr class="total"><td>Total liabilities</td><td class="num">{{ bs.total_liabilities|money }}</td></tr>
+
+          <tr class="section"><td colspan="2">Equity</td></tr>
+          {% for acc, v in bs.equity.rows %}
+          <tr><td class="indent">{{ acc.code }} — {{ acc.name }}</td><td class="num">{{ v|money }}</td></tr>
+          {% endfor %}
+          <tr><td class="indent">Retained earnings brought forward</td>
+            <td class="num {{ 'neg' if bs.retained_brought_forward < 0 }}">{{ bs.retained_brought_forward|money }}</td></tr>
+          <tr><td class="indent">Profit for the current year</td>
+            <td class="num {{ 'neg' if bs.current_earnings < 0 }}">{{ bs.current_earnings|money }}</td></tr>
+          <tr class="total"><td>Total equity</td><td class="num">{{ bs.total_equity|money }}</td></tr>
+
+          <tr class="grand"><td>Total liabilities and equity</td>
+            <td class="num">{{ (bs.total_liabilities + bs.total_equity)|money }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<p class="hint">
+  Retained earnings brought forward is the accumulated profit of earlier years.
+  Profit for the current year is this financial year's result, which moves into retained earnings at year end.
+</p>
+{% endblock %}

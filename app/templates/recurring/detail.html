@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}{{ rec.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ rec.name }}
+      <span class="badge {{ 'badge-paid' if rec.status == 'ACTIVE' else ('badge-void' if rec.status == 'FINISHED' else 'badge-draft') }}">
+        {{ rec.status|lower }}</span></h1>
+    <div class="muted small">
+      {{ 'Invoice to' if rec.is_sales else 'Bill from' }}
+      {{ rec.contact.name if rec.contact else '—' }} ·
+      {{ rec.frequency_label|lower }}
+      {% if rec.auto_post %} · posts itself to the ledger{% else %} · raised as a draft{% endif %}</div>
+  </div>
+  <div class="actions no-print">
+    {% if can(user, 'entry') %}<a class="btn" href="/recurring/{{ rec.id }}/edit">Edit</a>{% endif %}
+    <a class="btn" href="/recurring">All recurring</a>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Each time</div>
+    <div class="value">{{ rec.estimated_total|money }}</div>
+    <div class="sub">Before VAT</div></div>
+  <div class="stat"><div class="label">Next due</div>
+    <div class="value" style="font-size:1.15rem">
+      {{ rec.next_date|dt if rec.status != 'FINISHED' else '—' }}</div>
+    <div class="sub">{{ 'Overdue — waiting to be raised' if owed else 'Not yet due' }}</div></div>
+  <div class="stat"><div class="label">Raised so far</div>
+    <div class="value">{{ rec.occurrences }}</div>
+    <div class="sub">
+      {% if rec.max_occurrences %}{{ rec.remaining }} left of {{ rec.max_occurrences }}
+      {% elif rec.end_date %}until {{ rec.end_date|dt }}
+      {% else %}No end set{% endif %}</div></div>
+  <div class="stat"><div class="label">Billed in total</div>
+    <div class="value">{{ (history | map(attribute=0) | sum(attribute='total'))|money }}</div></div>
+</div>
+
+{% if owed and can(user, 'entry') %}
+<div class="alert alert-info no-print">
+  <b>{{ owed|length }} document{{ 's are' if owed|length != 1 else ' is' }} owed</b> —
+  {% for d in owed %}{{ d|dt }}{{ ', ' if not loop.last }}{% endfor %}.
+  <div class="btn-row" style="margin-top:.6rem">
+    <form method="post" action="/recurring/{{ rec.id }}/generate">
+      <button class="btn btn-primary" type="submit">
+        Raise {{ 'them all' if owed|length != 1 else 'it' }} now</button>
+    </form>
+    <form method="post" action="/recurring/{{ rec.id }}/skip"
+          onsubmit="return confirm('Skip {{ rec.next_date|dt }}? Nothing is billed for that date.')">
+      <button class="btn" type="submit">Skip {{ rec.next_date|dt }}</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>What is on it</h3></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th>
+          <th>VAT</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+          {% for l in rec.lines %}
+          <tr>
+            <td>{{ l.description or (l.item.name if l.item else '—') }}
+              {% if l.account %}<div class="muted small">{{ l.account.code }} {{ l.account.name }}</div>{% endif %}</td>
+            <td class="num">{{ l.qty|qty }}</td>
+            <td class="num">{{ l.unit_price|money }}</td>
+            <td class="small muted">{{ l.tax_code.code if l.tax_code else '—' }}</td>
+            <td class="num">{{ (l.qty * l.unit_price // 1000)|money }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot><tr><th colspan="4">Subtotal each time</th>
+          <th class="num">{{ rec.estimated_total|money }}</th></tr></tfoot>
+      </table>
+    </div>
+    {% if rec.memo %}<div class="card-body muted small">{{ rec.memo }}</div>{% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>When it falls next</h3></div>
+    {% if upcoming %}
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Date</th><th></th></tr></thead>
+        <tbody>
+          {% for d in upcoming[:14] %}
+          <tr><td>{{ d|dt }}</td>
+            <td>{% if d <= today() %}<span class="badge badge-part">owed now</span>{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body muted small">
+      The next {{ [upcoming|length, 14]|min }} date{{ 's' if upcoming|length != 1 }} over the coming year.
+      {% if rec.end_date %}It stops after {{ rec.end_date|dt }}.{% endif %}
+    </div>
+    {% else %}
+    <div class="empty">
+      {% if rec.status == 'FINISHED' %}This one has finished — it reached its end date or its limit.
+      {% elif rec.status == 'PAUSED' %}Paused. Start it again to see the dates.
+      {% else %}Nothing falls due in the next year.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if history %}
+<div class="card">
+  <div class="card-head"><h3>What it has raised</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Number</th><th>Date</th><th class="num">Total</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for link, doc in history %}
+        <tr>
+          <td class="mono">
+            {% if doc %}
+            <a href="{{ '/sales/invoices/' ~ doc.id if rec.is_sales else '/purchases/bills/' ~ doc.id }}">{{ link.doc_number }}</a>
+            {% else %}<span class="muted">{{ link.doc_number }} (deleted)</span>{% endif %}
+          </td>
+          <td>{{ link.date|dt }}</td>
+          <td class="num">{{ link.total|money }}</td>
+          <td>{% if doc %}<span class="badge {{ doc.status|status_class }}">{{ doc.status|lower }}</span>
+            {% else %}<span class="badge badge-void">gone</span>{% endif %}</td>
+          <td class="small muted">{{ 'posted automatically' if link.was_posted else 'raised as a draft' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if can(user, 'entry') %}
+<div class="card no-print">
+  <div class="card-body btn-row">
+    <form method="post" action="/recurring/{{ rec.id }}/pause">
+      <button class="btn" type="submit">
+        {{ 'Pause this one' if rec.status == 'ACTIVE' else 'Start it again' }}</button>
+    </form>
+    <form method="post" action="/recurring/{{ rec.id }}/delete"
+          onsubmit="return confirm('Delete this template? The {{ history|length }} document(s) it already raised stay exactly as they are.')">
+      <button class="btn btn-danger" type="submit">Delete the template</button>
+    </form>
+    <span class="muted small">Deleting a template never touches the invoices or bills it has already raised.</span>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

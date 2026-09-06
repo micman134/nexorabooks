@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Today's brief{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Today's brief</h1>
+    <div class="muted small">{{ company.name if company }} · {{ b.on|dt }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/insights/why">Why did that change?</a>
+    <a class="btn" href="/insights/board-pack">Board pack</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent">
+    <div class="label">Cash at bank</div>
+    <div class="value {{ 'neg' if b.cash < 0 }}">{{ b.cash|money }}</div>
+    <div class="sub"><a href="/banking">See the accounts</a></div>
+  </div>
+  <div class="stat {{ 'danger' if b.profit_month < 0 }}">
+    <div class="label">Profit so far this month</div>
+    <div class="value {{ 'neg' if b.profit_month < 0 }}">{{ b.profit_month|money }}</div>
+    <div class="sub">{{ b.profit_prior|money }} for all of last month</div>
+  </div>
+  <div class="stat">
+    <div class="label">Owed to you</div>
+    <div class="value">{{ b.receivables|money }}</div>
+    <div class="sub"><a href="/reports/aging?kind=ar">Who owes what</a></div>
+  </div>
+  <div class="stat">
+    <div class="label">You owe</div>
+    <div class="value">{{ b.payables|money }}</div>
+    <div class="sub"><a href="/reports/aging?kind=ap">What is due</a></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>{{ b.headline }}</h2>
+    <span class="muted small">Largest first, by the money involved.</span>
+  </div>
+  {% if b.quiet %}
+    <div class="brief-quiet">
+      <p><strong>Nothing needs you today.</strong></p>
+      <p>No overdue invoices, no drafts sitting unposted, nothing waiting for approval,
+         and the books balance.</p>
+    </div>
+  {% else %}
+  <ul class="points">
+    {% for p in b.needs_you %}
+    <li class="point-{{ p.kind }}">
+      <span class="point-mark" aria-hidden="true"></span>
+      <div class="point-body">
+        <strong>{{ p.title }}</strong>
+        {% if p.detail %}<span class="muted small">{{ p.detail }}</span>{% endif %}
+      </div>
+      {% if p.amount %}
+      <div class="point-amount {{ 'neg' if p.amount < 0 }}">{{ p.amount|money }}</div>
+      {% endif %}
+      {% if p.link %}
+      <div class="point-action no-print"><a class="btn btn-sm" href="{{ p.link }}">{{ p.link_label }}</a></div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head">
+      <h2>Last month against the month before</h2>
+    </div>
+    <div class="card-body">
+      {% for line in b.story %}<p>{{ line }}</p>{% endfor %}
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Part of the accounts</th><th class="num">Last month</th>
+                   <th class="num">Effect on profit</th></tr></thead>
+        <tbody>
+        {% for s in b.parts %}
+          <tr>
+            <td><a href="/insights/why?compare=month_prev&p={{ s.key }}">{{ s.label }}</a>
+              <div class="muted small">{{ s.prior|money }} the month before</div></td>
+            <td class="num">{{ s.current|money }}</td>
+            <td class="num {{ 'pos' if s.profit_effect > 0 else 'neg' }}">{{ s.profit_effect|money }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr><td>Net profit</td><td class="num">{{ b.profit_last_full|money }}</td>
+              <td class="num">{{ (b.profit_last_full - b.profit_before)|money }}</td></tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="card-body no-print">
+      <a class="btn btn-sm" href="/insights/why?compare=month_prev">Follow it down</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>What moved most</h2></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Account</th><th class="num">Effect on profit</th><th></th></tr></thead>
+        <tbody>
+        {% for m in b.moved %}
+          <tr>
+            <td>{{ m.label }}<div class="muted small">{{ m.prior|money }} → {{ m.current|money }}</div></td>
+            <td class="num {{ 'pos' if m.profit_effect > 0 else 'neg' }}">{{ m.profit_effect|money }}</td>
+            <td class="num no-print">
+              <a class="btn btn-sm" href="/insights/why?compare=month_prev&p={{ m.section }}&p={{ m.key }}">Why?</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="3" class="muted">Nothing moved between the two months.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<p class="muted small">
+  Everything above is read from your own books on this computer. Nothing is estimated,
+  nothing is predicted, and nothing has been sent anywhere.
+</p>
+{% endblock %}

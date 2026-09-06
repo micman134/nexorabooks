@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
+{% block title %}Payroll{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Payroll</h1>
+    <div class="muted small">PAYE under the Nigeria Tax Act 2025 · pension, NHF, NSITF and ITF</div>
+  </div>
+  <div class="actions">
+    {% if can(user, 'entry') %}<a class="btn btn-primary" href="/payroll/runs/new">Run payroll</a>{% endif %}
+    <a class="btn" href="/payroll/employees">Employees</a>
+    {% if can(user, 'admin') %}<a class="btn" href="/payroll/settings">Payroll settings</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">People on payroll</div><div class="value">{{ headcount }}</div>
+    <div class="sub"><a href="/payroll/employees">See everyone</a></div></div>
+  <div class="stat"><div class="label">Gross pay this year</div><div class="value">{{ ytd_gross|money }}</div>
+    <div class="sub">Total cost {{ ytd_cost|money }}</div></div>
+  <div class="stat"><div class="label">PAYE deducted this year</div><div class="value">{{ ytd_paye|money }}</div></div>
+  <div class="stat {{ 'warn' if remit_total }}"><div class="label">Waiting to be remitted</div>
+    <div class="value">{{ remit_total|money }}</div>
+    <div class="sub"><a href="/payroll/remittances">What's due</a></div></div>
+</div>
+
+{% if remittances %}
+<div class="card">
+  <div class="card-head"><h2>Owed to the authorities</h2>
+    <div class="actions"><a class="btn btn-sm" href="/payroll/remittances">Remit</a></div></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>What</th><th>Account</th><th>Due</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        {% for r in remittances %}
+        <tr>
+          <td>{{ r.label }}</td>
+          <td class="small muted">{{ r.account.code }} — {{ r.account.name }}</td>
+          <td class="small">{{ r.deadline }}</td>
+          <td class="num strong">{{ r.balance|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="3">Total held</td><td class="num">{{ remit_total|money }}</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><h2>Pay runs</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Run</th><th>Period</th><th>Pay date</th><th>Staff</th><th>Status</th>
+        <th class="num">Gross</th><th class="num">PAYE</th><th class="num">Net paid</th></tr></thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td><a href="/payroll/runs/{{ r.id }}">{{ r.number }}</a>
+            <div class="muted small">{{ r.frequency|lower|title }}</div></td>
+          <td class="nowrap">{{ r.period_start|dt('%d %b') }} – {{ r.period_end|dt }}</td>
+          <td class="nowrap">{{ r.pay_date|dt }}</td>
+          <td class="num">{{ r.employee_count }}</td>
+          <td>{{ status_badge(r.status) }}</td>
+          <td class="num">{{ r.gross_total|money }}</td>
+          <td class="num">{{ r.paye_total|money }}</td>
+          <td class="num strong">{{ r.net_total|money }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty">
+          No payroll has been run yet.
+          {% if can(user, 'entry') %}<a href="/payroll/employees/new">Add your first employee</a>,
+          then <a href="/payroll/runs/new">run payroll</a>.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>How PAYE is worked out here</h3></div>
+  <div class="card-body">
+    <p class="muted small">
+      Each period's pay is annualised, the reliefs are taken off, the result is taxed in bands,
+      and the answer is divided back down. Reliefs are the employee's {{ settings.pension_employee }}%
+      pension, NHF, NHIS, life assurance where recorded, and rent relief — the lower of
+      {{ settings.rent_relief_rate }}% of the rent they actually pay or {{ settings.rent_relief_cap|money }}.
+      Anyone earning no more than the national minimum wage ({{ settings.minimum_wage|money }} a month)
+      pays no PAYE at all. Every payslip shows the working.
+    </p>
+    <p class="muted small">
+      The Consolidated Relief Allowance and the old 1% minimum tax no longer exist — they were
+      removed by the Nigeria Tax Act 2025. All rates are editable under
+      {% if can(user, 'admin') %}<a href="/payroll/settings">Payroll settings</a>{% else %}Payroll settings{% endif %}.
+    </p>
+  </div>
+</div>
+{% endblock %}

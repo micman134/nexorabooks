@@ -1,0 +1,107 @@
+NEXORA BOOKS — WHAT HAPPENS TO YOUR INFORMATION
+===============================================
+
+
+THE SHORT VERSION
+
+Nexora Books runs on your own computer and keeps your books in a file on that
+computer. It does not send your accounting data anywhere. There is no cloud
+account, no server of ours holding your figures, and no internet connection
+required to use it.
+
+
+WHAT THE SOFTWARE KEEPS, AND WHERE
+
+Everything you type in — your customers, suppliers, staff, invoices, payments,
+payroll and ledger — is stored in one folder on your computer, with one
+database file for each company. Settings > Diagnostics shows you exactly where.
+
+Attachments you upload, your logo, and your backups are in that same folder.
+
+Nobody else can read it unless they can get at that computer, or at a backup
+you have put somewhere else. Protecting the computer, and choosing where your
+backups go, is yours to do.
+
+
+WHAT LEAVES YOUR COMPUTER
+
+Three things, all of which you start yourself:
+
+  1. Email you send. If you set up Settings > Email, invoices and statements
+     go out through your own mail provider, using your own account. The
+     message and its PDF go from you to your customer. We are not in the
+     middle of it and we never see it.
+
+  2. Backups you place elsewhere. If you tell the automatic backup to put a
+     copy in a folder that syncs to Google Drive, Dropbox or OneDrive, then a
+     copy of your books goes there, under that company's terms rather than
+     ours. That is usually a very good idea; it is also worth knowing.
+
+  3. A diagnostic report, if you send one. Settings > Diagnostics builds a
+     text file describing the installation — version, operating system, how big
+     the files are, whether backups are running, and recent errors. It does not
+     copy your invoices or your customer list. It is shown to you in full
+     before you send it, and it goes nowhere unless you attach it to an email
+     yourself.
+
+Two-factor sign-in is worth mentioning here because people assume it must
+involve an account somewhere. It does not. The key is generated on your
+computer, the QR code that carries it to your phone is drawn on your computer,
+and the six digits are worked out on both ends independently. Your phone and
+this software never speak to each other, and neither of them speaks to us.
+
+Nothing else. The software does not check for updates, does not report usage,
+and contains no analytics or tracking of any kind.
+
+
+YOUR LICENCE
+
+When you buy a licence you give us a machine code from the Licence screen. It
+is a one-way fingerprint of the installation: it contains no name, no serial
+number and nothing that identifies you or your computer, and it cannot be
+turned back into any of those things.
+
+We hold the name you gave us, the machine code, what you paid and when, so that
+we can support you and re-issue your key if your computer is replaced. We keep
+that while your licence is live and for six years afterwards, so that we can
+meet Nigerian tax and record-keeping requirements, and then we delete it.
+
+The licence check happens entirely on your computer. Nexora Books never
+contacts us to verify anything, so we cannot tell whether or when you are using
+it.
+
+
+PERSONAL INFORMATION IN YOUR BOOKS
+
+Your books will contain personal information about other people — the names,
+addresses, bank details and pay of your customers, suppliers and staff.
+
+That information is yours to look after, not ours. Under the Nigeria Data
+Protection Act 2023 you are the one responsible for it. In practical terms:
+
+  * keep the computer locked, and give each person their own login;
+  * think about who can reach the folder your backups go into;
+  * remember that a backup on a flash drive is a copy of everyone's pay.
+
+The software helps where it can: every user has their own account, the audit
+trail records who did what, and payslips are only visible to people whose role
+allows it.
+
+
+CHILDREN
+
+This is accounting software for businesses. It is not intended for use by
+children and we do not knowingly hold any information about them.
+
+
+ASKING US SOMETHING
+
+    Tavo Networks Limited (RC 8237044)
+    Lekki, Lagos, Nigeria
+    support@tavonetworks.tech
+
+If you want to know what we hold about you as a customer, or want it deleted,
+write to us and we will answer within 30 days.
+
+
+Version 2.11.7 — 1 September 2026

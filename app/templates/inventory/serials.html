@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Serial numbers{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Serial numbers</h1>
+    <div class="muted small">Every tracked unit, from the day it arrived to the day it was sold —
+      and who bought it, when the customer comes back.</div>
+  </div>
+  <div class="actions"><a class="btn" href="/inventory">Items &amp; stock</a></div>
+</div>
+
+<form class="filters" method="get">
+  <div class="field" style="flex:1"><label for="q">Search</label>
+    <input id="q" type="search" name="q" value="{{ q }}"
+           placeholder="Serial number, item, invoice or bill number"></div>
+  <div class="field"><label for="st">Status</label>
+    <select id="st" name="status">
+      <option value="" {{ 'selected' if not status }}>Everything</option>
+      <option value="IN_STOCK" {{ 'selected' if status == 'IN_STOCK' }}>In stock</option>
+      <option value="SOLD" {{ 'selected' if status == 'SOLD' }}>Sold</option>
+      <option value="SCRAPPED" {{ 'selected' if status == 'SCRAPPED' }}>Written off</option>
+    </select></div>
+  <button class="btn" type="submit">Search</button>
+</form>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">In stock now</div><div class="value">{{ in_stock }}</div></div>
+  <div class="stat"><div class="label">Shown</div><div class="value">{{ rows|length }}</div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Serial</th><th>Item</th><th>Status</th><th>Received</th>
+        <th>Sold</th><th>To</th><th>Warranty</th><th class="num">Cost</th></tr></thead>
+      <tbody>
+        {% for s in rows %}
+        <tr>
+          <td class="mono"><b>{{ s.serial }}</b></td>
+          <td><a href="/inventory/{{ s.item_id }}">{{ s.item.name }}</a>
+            {% if s.batch %}<div class="muted small">batch {{ s.batch.batch_no }}</div>{% endif %}</td>
+          <td><span class="badge {{ 'badge-paid' if s.status == 'IN_STOCK' else ('badge-void' if s.status == 'SCRAPPED' else 'badge-open') }}">
+            {{ s.status.replace('_', ' ')|lower }}</span>
+            {% if s.location and s.status == 'IN_STOCK' %}
+            <div class="muted small">{{ s.location.name }}</div>{% endif %}</td>
+          <td class="small">{{ s.received_on|dt }}
+            {% if s.received_doc %}<div class="muted small">{{ s.received_doc }}</div>{% endif %}</td>
+          <td class="small">{{ s.sold_on|dt if s.sold_on else '—' }}
+            {% if s.sold_doc %}<div class="muted small">{{ s.sold_doc }}</div>{% endif %}</td>
+          <td class="small">{{ s.customer.name if s.customer else '—' }}</td>
+          <td class="small">
+            {% if s.warranty_until %}
+              {{ s.warranty_until|dt }}
+              {% if s.in_warranty %}<span class="badge badge-paid">in warranty</span>
+              {% else %}<span class="badge badge-draft">expired</span>{% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td class="num">{{ s.cost|money }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty">
+          {% if q or status %}Nothing matched.
+          {% else %}No serial numbers recorded yet. Switch on "track individual serial numbers"
+          on an item, and every unit received will appear here.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

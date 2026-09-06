@@ -1,0 +1,44 @@
+[Unit]
+Description=Nexora Books
+Documentation=file:/opt/nexorabooks/deploy/README.txt
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nexora
+Group=nexora
+WorkingDirectory=/opt/nexorabooks
+
+# The books live outside the program, exactly as they do on Windows. Keeping
+# them out of /opt means a redeploy can replace every file of the application
+# without ever touching a customer's ledger.
+Environment="NEXORA_DATA=/var/lib/nexorabooks"
+
+# Listen on the loopback address only. Nginx is what faces the internet; the
+# application itself must never be reachable from outside this machine, or the
+# rate limiting and the TLS in front of it can simply be walked around.
+ExecStart=/opt/nexorabooks/venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 \
+    --port 8756 \
+    --proxy-headers \
+    --forwarded-allow-ips=127.0.0.1
+
+Restart=always
+RestartSec=5
+
+# Hardening. None of this changes what the software does; all of it limits
+# what a break-in could reach from here.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/var/lib/nexorabooks
+
+[Install]
+WantedBy=multi-user.target

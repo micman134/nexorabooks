@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}What was this?{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>What was this?</h1>
+    <div class="muted small">{{ line.date|dt }} · {{ batch.bank_account.name }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/banking/import/{{ batch.id }}">Back to the statement</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="movement {{ 'up' if line.amount > 0 else 'down' }}">
+      <div class="movement-figure">
+        <div class="label">{{ 'Money in' if line.amount > 0 else 'Money out' }}</div>
+        <div class="value">{{ line.amount|money }}</div>
+        <div class="sub">{{ line.date|dt }}</div>
+      </div>
+      <div class="movement-words">
+        <p>{{ line.description }}</p>
+        {% if line.reference %}<p class="muted small">Reference: {{ line.reference }}</p>{% endif %}
+        {% if line.reason %}<p class="muted small">{{ line.reason }}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ---- 1. it is already in the books ------------------------------------ #}
+{% if nearby %}
+<div class="card">
+  <div class="card-head">
+    <h2>Is it one of these, already in your books?</h2>
+    <span class="muted small">Entries on this account for exactly this amount that
+      have not been ticked off.</span>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Entry</th><th>Date</th><th>Description</th><th class="num">Amount</th><th></th></tr></thead>
+      <tbody>
+        {% for row, entry in nearby %}
+        <tr>
+          <td class="mono"><a href="/journals/{{ entry.id }}">{{ entry.number }}</a></td>
+          <td class="nowrap">{{ entry.date|dt }}</td>
+          <td>{{ entry.memo }}</td>
+          <td class="num">{{ (row.debit - row.credit)|money }}</td>
+          <td class="right">
+            <form method="post" action="/banking/import/{{ batch.id }}/line/{{ line.id }}">
+              <input type="hidden" name="action" value="CLEAR">
+              <input type="hidden" name="journal_line_id" value="{{ row.id }}">
+              <button class="btn btn-sm btn-primary" type="submit">That's the one</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body">
+    <p class="muted small">Choosing one of these records nothing new — it ticks that
+      entry off as having cleared the bank.</p>
+  </div>
+</div>
+{% endif %}
+
+{# ---- 2. it settles invoices or bills ---------------------------------- #}
+<div class="card">
+  <div class="card-head">
+    <h2>{{ 'Is a customer paying you?' if line.amount > 0 else 'Are you paying a supplier?' }}</h2>
+    <span class="muted small">Tick everything this one payment covers.</span>
+  </div>
+  <form method="post" action="/banking/import/{{ batch.id }}/line/{{ line.id }}">
+    <input type="hidden" name="action" value="{{ 'RECEIPT' if line.amount > 0 else 'PAYMENT' }}">
+    <div class="card-body">
+      <div class="field" style="max-width:420px">
+        <label for="contact_id">{{ 'Customer' if line.amount > 0 else 'Supplier' }}</label>
+        <select id="contact_id" name="contact_id" onchange="filterDocs(this.value)">
+          <option value="">— choose —</option>
+          {% for c in contacts %}
+            {% if (line.amount > 0 and c.is_customer) or (line.amount < 0 and c.is_vendor) %}
+            <option value="{{ c.id }}" {{ 'selected' if c.id == line.contact_id }}>{{ c.name }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+        <div class="hint">Leave the list below untouched and it settles their oldest
+          outstanding documents first.</div>
+      </div>
+    </div>
+    {% if documents %}
+    <div class="table-wrap">
+      <table class="data" id="docs">
+        <thead><tr><th></th><th>Number</th><th>{{ 'Customer' if line.amount > 0 else 'Supplier' }}</th>
+          <th>Date</th><th class="num">Outstanding</th></tr></thead>
+        <tbody>
+          {% for doc in documents %}
+          <tr data-contact="{{ doc.contact_id }}">
+            <td><input type="checkbox" name="document_id" value="{{ doc.id }}"
+                       {{ 'checked' if doc.id in line.documents }}></td>
+            <td class="mono">{{ doc.number }}</td>
+            <td>{{ doc.contact.name if doc.contact }}</td>
+            <td class="nowrap">{{ doc.date|dt }}</td>
+            <td class="num">{{ doc.balance_due|money }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body"><p class="muted">Nothing is outstanding that this could settle.</p></div>
+    {% endif %}
+    <div class="card-body">
+      <button class="btn btn-primary" type="submit">
+        Record it as {{ 'a receipt' if line.amount > 0 else 'a payment' }}
+      </button>
+    </div>
+  </form>
+</div>
+
+{# ---- 3. straight to an account ---------------------------------------- #}
+<div class="card">
+  <div class="card-head">
+    <h2>{{ 'Or is it income of another kind?' if line.amount > 0 else 'Or is it a cost?' }}</h2>
+    <span class="muted small">Bank charges, a cash sale, a subscription, a refund.</span>
+  </div>
+  <form method="post" action="/banking/import/{{ batch.id }}/line/{{ line.id }}">
+    <input type="hidden" name="action" value="POST">
+    <div class="card-body">
+      <div class="filters">
+        <div class="field" style="min-width:320px">
+          <label for="account_id">Account</label>
+          <select id="account_id" name="account_id" required>
+            <option value="">— choose —</option>
+            {% for a in accounts %}
+            <option value="{{ a.id }}" {{ 'selected' if a.id == line.account_id }}>
+              {{ a.code }} — {{ a.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field" style="min-width:260px">
+          <label for="post_contact">Who with (optional)</label>
+          <select id="post_contact" name="contact_id">
+            <option value="">— nobody in particular —</option>
+            {% for c in contacts %}
+            <option value="{{ c.id }}" {{ 'selected' if c.id == line.contact_id }}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-primary" type="submit">Post it there</button>
+      </div>
+      <p class="hint">
+        Next time a line like “{{ line.description[:44] }}” comes through, this
+        account will be suggested. It stays a suggestion — nothing will post on its own.
+      </p>
+    </div>
+  </form>
+</div>
+
+{# ---- 4. leave it out --------------------------------------------------- #}
+<div class="card">
+  <div class="card-head"><h2>Or leave it out</h2></div>
+  <div class="card-body">
+    <p class="muted">For a transfer between two of your own accounts that is already
+      recorded from the other side, or anything that simply is not yours to record.
+      It stays on the statement, marked as left out, and posts nothing.</p>
+    <form method="post" action="/banking/import/{{ batch.id }}/line/{{ line.id }}">
+      <input type="hidden" name="action" value="IGNORE">
+      <button class="btn" type="submit">Leave this one out</button>
+    </form>
+  </div>
+</div>
+
+<script>
+function filterDocs(contactId) {
+  var rows = document.querySelectorAll('#docs tbody tr');
+  for (var i = 0; i < rows.length; i++) {
+    var mine = !contactId || rows[i].dataset.contact === contactId;
+    rows[i].style.display = mine ? '' : 'none';
+    if (!mine) { var box = rows[i].querySelector('input'); if (box) box.checked = false; }
+  }
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var picker = document.getElementById('contact_id');
+  if (picker && picker.value) filterDocs(picker.value);
+});
+</script>
+{% endblock %}

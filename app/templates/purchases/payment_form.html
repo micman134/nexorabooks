@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Record a payment{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Record a supplier payment</h1></div>
+
+<form method="get" class="filters no-print">
+  <div class="field" style="flex:1"><label>Supplier</label>
+    <select name="contact" onchange="this.form.submit()">
+      <option value="">— choose a supplier to see their open bills —</option>
+      {% for c in vendors %}<option value="{{ c.id }}" {{ 'selected' if contact_id == c.id }}>{{ c.name }}</option>{% endfor %}
+    </select></div>
+  <noscript><button class="btn" type="submit">Load bills</button></noscript>
+</form>
+
+<form method="post" action="/payments/save">
+  <input type="hidden" name="contact_id" value="{{ contact_id or '' }}">
+
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field"><label for="d">Date paid</label>
+          <input id="d" type="date" name="date" value="{{ today.isoformat() }}" required></div>
+        <div class="field"><label for="b">Paid from</label>
+          <select id="b" name="bank_account_id" required>
+            {% for b in banks %}<option value="{{ b.id }}" {{ 'selected' if b.is_default }}>{{ b.name }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="m">Method</label>
+          <select id="m" name="method">
+            <option>Bank transfer</option><option>Cash</option><option>Cheque</option>
+            <option>POS / card</option><option>Other</option>
+          </select></div>
+        <div class="field"><label for="r">Reference</label><input id="r" name="reference"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="a">Cash paid *</label>
+          <input id="a" class="num" name="amount" placeholder="0.00" required></div>
+        <div class="field"><label for="w">WHT withheld</label>
+          <input id="w" class="num" name="wht_amount" placeholder="0.00">
+          <div class="hint">Deducted from the supplier and remitted to the NRS.</div></div>
+        <div class="field"><label for="disc">Settlement discount taken</label>
+          <input id="disc" class="num" name="discount_amount" placeholder="0.00"></div>
+        <div class="field"><label for="bc">Bank charge</label>
+          <input id="bc" class="num" name="bank_charge" placeholder="0.00"></div>
+      </div>
+      <div class="field"><label for="memo">Note</label><input id="memo" name="memo"></div>
+    </div>
+  </div>
+
+  {% if contact_id %}
+  <div class="card">
+    <div class="card-head"><h2>Apply to bills</h2>
+      <div class="actions"><button class="btn btn-sm" type="button" id="fill">Fill oldest first</button></div></div>
+    <div class="card-body">
+      {% if open_bills %}
+      <p class="hint">Leave every box empty and the payment is applied automatically to the oldest bills first.
+        The WHT column shows what should be withheld on each bill.</p>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Bill</th><th>Date</th><th>Due</th><th class="num">Total</th>
+            <th class="num">WHT</th><th class="num">Outstanding</th><th class="num" style="width:160px">Apply</th></tr></thead>
+          <tbody>
+            {% for b in open_bills %}
+            <tr>
+              <td><a href="/purchases/bills/{{ b.id }}" target="_blank">{{ b.number }}</a>
+                <input type="hidden" name="alloc_bill_id" value="{{ b.id }}"></td>
+              <td class="nowrap">{{ b.date|dt }}</td>
+              <td class="nowrap {{ 'neg' if b.due_date and b.due_date < today }}">{{ b.due_date|dt if b.due_date }}</td>
+              <td class="num">{{ b.total|money }}</td>
+              <td class="num">{{ b.wht_total|money if b.wht_total else '—' }}</td>
+              <td class="num strong out" data-out="{{ b.balance_due|naira }}">{{ b.balance_due|money }}</td>
+              <td><input class="num alloc" name="alloc_amount" placeholder="0.00"
+                    value="{{ b.balance_due|naira if b.id == bill_id else '' }}"></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty">This supplier has no outstanding bills. The payment will sit as a credit on their account.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit" {{ 'disabled' if not contact_id }}>Record the payment</button>
+    <a class="btn" href="/payments">Cancel</a>
+  </div>
+  {% if not contact_id %}<p class="hint">Choose a supplier above first.</p>{% endif %}
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var fill = document.getElementById('fill');
+  if (!fill) return;
+  fill.addEventListener('click', function () {
+    function n(id) { return parseFloat((document.getElementById(id).value || '0').replace(/,/g, '')) || 0; }
+    var left = n('a') + n('w') + n('disc');
+    document.querySelectorAll('tbody tr').forEach(function (row) {
+      var out = parseFloat(row.querySelector('.out').getAttribute('data-out')) || 0;
+      var box = row.querySelector('.alloc');
+      var apply = Math.min(out, left);
+      box.value = apply > 0 ? apply.toFixed(2) : '';
+      left -= apply;
+    });
+  });
+});
+</script>
+{% endblock %}

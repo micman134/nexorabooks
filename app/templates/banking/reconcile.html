@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Reconcile {{ bank.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Reconcile — {{ bank.name }}</h1>
+    <div class="muted small">Tick everything that appears on your bank statement, then check the difference is zero.</div>
+  </div>
+  <div class="actions"><a class="btn" href="/banking/{{ bank.id }}">Back to the account</a></div>
+</div>
+
+<form method="get" class="filters">
+  <div class="field"><label>Statement date</label>
+    <input type="date" name="statement_date" value="{{ statement_date }}"></div>
+  <div class="field"><label>Closing balance on the statement</label>
+    <input class="num" name="statement_balance" value="{{ statement_balance|naira if statement_balance else '' }}" placeholder="0.00"></div>
+  <button class="btn" type="submit">Load</button>
+</form>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Statement balance</div><div class="value">{{ statement_balance|money }}</div></div>
+  <div class="stat"><div class="label">Cleared in the books</div><div class="value">{{ cleared_total|money }}</div></div>
+  <div class="stat {{ 'accent' if difference == 0 else 'danger' }}">
+    <div class="label">Difference</div>
+    <div class="value {{ 'neg' if difference }}">{{ difference|money }}</div>
+    <div class="sub">{{ 'Reconciled' if difference == 0 else 'Keep ticking until this is nil' }}</div></div>
+  <div class="stat"><div class="label">Book balance</div><div class="value">{{ book_balance|money }}</div>
+    <div class="sub">{{ uncleared|length }} item(s) not yet cleared</div></div>
+</div>
+
+<form method="post" action="/banking/{{ bank.id }}/reconcile">
+  <input type="hidden" name="statement_date" value="{{ statement_date }}">
+  <input type="hidden" name="statement_balance" value="{{ statement_balance|naira }}">
+
+  <div class="card">
+    <div class="card-head"><h2>Transactions up to {{ statement_date|dt }}</h2>
+      <div class="actions">
+        <button class="btn btn-sm" type="button" id="tick-all">Tick everything</button>
+        <button class="btn btn-sm" type="button" id="untick-all">Untick everything</button>
+      </div></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th style="width:60px">On statement</th><th>Date</th><th>Journal</th><th>Narration</th>
+          <th class="num">In</th><th class="num">Out</th></tr></thead>
+        <tbody>
+          {% for line, entry in rows %}
+          <tr>
+            <td class="center"><input type="checkbox" class="tick" name="cleared" value="{{ line.id }}"
+                  {{ 'checked' if line.cleared }} {{ 'disabled' if line.reconciliation_id }}></td>
+            <td class="nowrap">{{ entry.date|dt }}</td>
+            <td><a href="/journals/{{ entry.id }}" target="_blank">{{ entry.number }}</a></td>
+            <td>{{ line.memo or entry.memo }}</td>
+            <td class="num">{{ line.debit|money if line.debit else '' }}</td>
+            <td class="num">{{ line.credit|money if line.credit else '' }}</td>
+          </tr>
+          {% else %}<tr><td colspan="6" class="empty">Nothing to reconcile up to this date.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" type="submit" name="action" value="save">Save progress</button>
+    <button class="btn btn-primary" type="submit" name="action" value="finish">Finish the reconciliation</button>
+  </div>
+</form>
+
+{% if history %}
+<div class="card" style="margin-top:1rem">
+  <div class="card-head"><h3>Past reconciliations</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Statement date</th><th class="num">Statement balance</th><th class="num">Cleared</th><th>Completed</th></tr></thead>
+      <tbody>
+        {% for r in history %}
+        <tr><td>{{ r.statement_date|dt }}</td><td class="num">{{ r.statement_balance|money }}</td>
+          <td class="num">{{ r.cleared_total|money }}</td>
+          <td>{{ r.closed_at|dt('%d %b %Y, %H:%M') if r.closed_at }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  function setAll(v) {
+    document.querySelectorAll('.tick:not(:disabled)').forEach(function (c) { c.checked = v; });
+  }
+  document.getElementById('tick-all').addEventListener('click', function () { setAll(true); });
+  document.getElementById('untick-all').addEventListener('click', function () { setAll(false); });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}My account{% endblock %}
+{% macro theme_option(t, current) %}
+<label class="theme-option {{ 'chosen' if current == t.key }}">
+  <input type="radio" name="theme" value="{{ t.key }}" {{ 'checked' if current == t.key }}>
+  <span class="theme-swatch">
+    <span style="background: {{ t.swatch[0] }}"></span>
+    <span style="background: {{ t.swatch[1] }}"></span>
+    <span style="background: {{ t.swatch[2] }}"></span>
+  </span>
+  <span class="theme-name">{{ t.name }}</span>
+  <span class="theme-note muted small">{{ t.note }}</span>
+</label>
+{% endmacro %}
+{% block content %}
+<div class="page-head"><h1>My account</h1></div>
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Details</h2></div>
+    <div class="card-body">
+      <table class="data">
+        <tr><th>Username</th><td>{{ user.username }}</td></tr>
+        <tr><th>Name</th><td>{{ user.full_name or '—' }}</td></tr>
+        <tr><th>Email</th><td>{{ user.email or '—' }}</td></tr>
+        <tr><th>Role</th><td>{{ ROLE_LABELS.get(user.role, user.role) }}</td></tr>
+        <tr><th>Last signed in</th><td>{{ user.last_login|dt('%d %b %Y, %H:%M') if user.last_login else 'This is your first sign-in' }}</td></tr>
+      </table>
+      <div style="margin-top:1rem"><a class="btn" href="/account/password">Change password</a></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Two-factor sign-in</h2>
+      {% if user.totp_enabled %}<span class="badge badge-paid">on</span>
+      {% else %}<span class="badge badge-draft">off</span>{% endif %}
+    </div>
+    <div class="card-body">
+      {% if user.totp_enabled %}
+        <p>Your password alone is not enough to reach these books — a code from your
+          phone is needed as well. On since {{ user.totp_confirmed_at|dt('%d %b %Y') }}.</p>
+        <p class="muted small">
+          {{ user.recovery_codes_left }} recovery code{{ 's' if user.recovery_codes_left != 1 }} left.
+          {% if user.recovery_codes_left <= 2 %}<strong>That is nearly none — make a new set.</strong>{% endif %}
+        </p>
+        <form method="post" action="/account/two-factor/recovery" class="inline-form">
+          <input type="password" name="password" placeholder="Your password" required
+                 autocomplete="current-password" aria-label="Your password">
+          <button class="btn btn-sm" type="submit">New recovery codes</button>
+        </form>
+        {% if not company.require_two_factor %}
+        <form method="post" action="/account/two-factor/off" class="inline-form"
+              onsubmit="return confirm('Turn off two-factor sign-in? Your password becomes the only thing protecting your books.')">
+          <input type="password" name="password" placeholder="Your password" required
+                 autocomplete="current-password" aria-label="Your password">
+          <button class="btn btn-sm btn-danger" type="submit">Turn it off</button>
+        </form>
+        {% else %}
+        <p class="muted small">Your company requires this, so it cannot be turned off.</p>
+        {% endif %}
+        {% if user.totp_offset %}
+        <p class="alert alert-warning small" style="margin-top:.8rem">
+          This computer's clock is about {{ clock_out }}. Your codes still work, but
+          please put it right — on Windows, Settings › Time &amp; language › Date &amp;
+          time, then turn on "Set time automatically". The dates on your invoices and
+          audit trail come from this same clock.
+        </p>
+        {% endif %}
+        <p class="muted small" style="margin-top:.8rem">
+          Lost the phone and the recovery codes, with no other administrator to ask?
+          Close {{ APP_NAME }} and run <strong>Reset-TwoFactor</strong> in the folder it
+          was installed into. Nobody is ever shut out of their own books.
+        </p>
+      {% else %}
+        <p>Your password is currently the only thing between anyone and your books.
+          Adding a code from your phone means a stolen password on its own is not enough.</p>
+        <p class="muted small">
+          It works offline. Nothing is sent anywhere, and there is nothing to sign up for.
+        </p>
+        <a class="btn btn-primary" href="/account/two-factor">Set it up</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>What your role allows</h2></div>
+    <div class="card-body">
+      <ul style="padding-left:1.1rem; margin:0">
+        <li>View records and reports{{ '' if can(user,'entry') else ' — read-only' }}</li>
+        {% if can(user, 'entry') %}<li>Create invoices, bills, receipts and payments</li>{% endif %}
+        {% if can(user, 'journal') %}<li>Post manual journals, opening balances and reconciliations</li>{% endif %}
+        {% if can(user, 'void') %}<li>Void and reverse posted documents</li>{% endif %}
+        {% if can(user, 'admin') %}<li>Manage users, company settings, period locks and year-end</li>{% endif %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head">
+    <h2>Colours</h2>
+    <div class="muted small">Yours alone — nobody else sees your choice.</div>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/account/theme" id="themeform">
+      <p class="small muted">
+        Click one to try it. It changes straight away; press Keep to make it stick.
+      </p>
+
+      <div class="theme-grid">
+        {% for t in themes.light() %}
+        {{ theme_option(t, theme) }}
+        {% endfor %}
+      </div>
+
+      <h3 style="margin-top:1.25rem; font-size:.95rem">Dark</h3>
+      <div class="theme-grid">
+        {% for t in themes.dark() %}
+        {{ theme_option(t, theme) }}
+        {% endfor %}
+      </div>
+
+      <div class="btn-row" style="margin-top:1.25rem">
+        <button class="btn btn-primary" type="submit">Keep this one</button>
+        <button class="btn" type="submit" name="theme" value="">Use the company's</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Clicking a swatch previews it immediately — the whole page redraws in the new
+// colours, so nobody has to save something to find out what it looks like.
+(function () {
+  var root = document.documentElement;
+  var was = root.getAttribute('data-theme');
+  document.querySelectorAll('#themeform input[name=theme]').forEach(function (radio) {
+    radio.addEventListener('change', function () { root.setAttribute('data-theme', radio.value); });
+  });
+  // If they wander off without keeping it, put back what was actually saved.
+  window.addEventListener('pagehide', function () { root.setAttribute('data-theme', was); });
+})();
+</script>
+{% endblock %}

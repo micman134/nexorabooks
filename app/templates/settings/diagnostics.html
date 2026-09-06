@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Diagnostics{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Diagnostics</h1>
+  <div class="actions">
+    <a class="btn btn-primary" href="/settings/diagnostics/download">Download the report</a>
+    <a class="btn" href="/settings">Back to settings</a>
+  </div>
+</div>
+
+<div class="alert alert-info">
+  If something is not working, download this and send it to whoever supports
+  {{ APP_NAME }}. It says which version you are on, how big your books are,
+  whether backups are running, and what the last errors were — everything they
+  would otherwise have to ask you for one question at a time.
+  <br><br>
+  It describes the installation, not the books: no invoice figures and no
+  customer list. Read it before you send it; it is plain text and nothing in it
+  is hidden from you.
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>What it says</h2></div>
+  <div class="card-body">
+    <pre style="white-space:pre-wrap; font-size:.8rem; line-height:1.5; margin:0; overflow-x:auto">{{ report }}</pre>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head">
+    <h2>Recorded errors</h2>
+    {% if errors %}
+    <form method="post" action="/settings/diagnostics/clear"
+          onsubmit="return confirm('Clear the error log? The report will no longer show what went wrong before now.')">
+      <button class="btn btn-danger btn-sm" type="submit">Clear the log</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    {% if not errors %}
+    <p class="small muted">Nothing has gone wrong since this was installed.</p>
+    {% else %}
+    <p class="small muted">Newest first. These are already in the report above.</p>
+    {% for block in errors %}
+    <details style="margin-bottom:.5rem">
+      <summary class="small">{{ block.splitlines()[0] }}</summary>
+      <pre style="white-space:pre-wrap; font-size:.75rem; margin:.5rem 0 0">{{ block }}</pre>
+    </details>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

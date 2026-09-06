@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Stock going off{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Stock going off</h1>
+    <div class="muted small">Batches at or near their expiry date, and what is left of them.</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="?days={{ days }}&amp;format=csv">Export CSV</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+    <a class="btn" href="/inventory">Items &amp; stock</a>
+  </div>
+</div>
+
+<form class="filters no-print" method="get">
+  <div class="field"><label for="dy">Looking ahead</label>
+    <select id="dy" name="days" onchange="this.form.submit()">
+      <option value="30" {{ 'selected' if days == 30 }}>30 days</option>
+      <option value="60" {{ 'selected' if days == 60 }}>60 days</option>
+      <option value="90" {{ 'selected' if days == 90 }}>90 days</option>
+      <option value="180" {{ 'selected' if days == 180 }}>6 months</option>
+      <option value="365" {{ 'selected' if days == 365 }}>A year</option>
+    </select></div>
+</form>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat {{ 'danger' if expired else 'accent' }}">
+    <div class="label">Already expired</div>
+    <div class="value">{{ expired|length }}</div>
+    <div class="sub">{{ 'Write these off' if expired else 'Nothing past its date' }}</div></div>
+  <div class="stat"><div class="label">Batches in the window</div>
+    <div class="value">{{ rows|length }}</div></div>
+  <div class="stat"><div class="label">Value at risk</div>
+    <div class="value">{{ value|money }}</div>
+    <div class="sub">At current cost</div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Item</th><th>Batch</th><th>Expires</th><th class="num">Days left</th>
+        <th class="num">Left in stock</th><th class="num">Value</th><th></th></tr></thead>
+      <tbody>
+        {% for b, qty in rows %}
+        <tr>
+          <td><a href="/inventory/{{ b.item_id }}">{{ b.item.name }}</a></td>
+          <td class="mono">{{ b.batch_no }}</td>
+          <td>{{ b.expiry_date|dt }}</td>
+          <td class="num {{ 'neg' if b.is_expired }}">{{ b.days_to_expiry }}</td>
+          <td class="num">{{ qty|qty }} {{ b.item.unit }}</td>
+          <td class="num">{{ (qty * b.item.unit_cost // 1000)|money }}</td>
+          <td>
+            {% if b.is_expired %}<span class="badge badge-void">expired</span>
+            {% elif b.days_to_expiry <= 30 %}<span class="badge badge-part">going off</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">
+          Nothing expires in the next {{ days }} days.
+          {% if not rows %}Only items set to track batches appear here.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="muted small">
+  When stock goes out, the batch that expires soonest is taken first unless you name another —
+  otherwise good stock sits behind newer stock and expires on the shelf.
+  Write off what has expired through the item's stock adjustment.
+</p>
+{% endblock %}

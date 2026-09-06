@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Two-factor sign-in{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Two-factor sign-in</h1>
+    <div class="muted small">A code from your phone, as well as your password.</div>
+  </div>
+</div>
+
+{% if request.query_params.get('required') %}
+<div class="alert alert-warning">
+  Your company requires two-factor sign-in. Finish setting it up here and you can
+  carry on — nothing else is available until you do.
+</div>
+{% endif %}
+
+{% if done %}
+<div class="card">
+  <div class="card-body">
+    <p><strong>It is already on for your account.</strong></p>
+    <p class="muted">You can turn it off or make new recovery codes from
+      <a href="/account">your account page</a>.</p>
+  </div>
+</div>
+{% else %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>1 · Point your phone at this</h2></div>
+    <div class="card-body">
+      <p class="muted small">
+        Open an authenticator app — Google Authenticator, Microsoft Authenticator, Authy,
+        1Password, or whichever one you already use — and scan this.
+      </p>
+      <div class="qr-holder">{{ qr|safe }}</div>
+
+      <details>
+        <summary>Or type the key in by hand</summary>
+        <p class="muted small">Some apps ask for a key instead of a scan. This is it —
+          the spaces are only there to make it readable, so leave them out:</p>
+        <p><code class="secret-key">{{ typed_key }}</code></p>
+        <p class="muted small">
+          Time-based, SHA-1, six digits, thirty seconds — the defaults every app uses.
+        </p>
+      </details>
+
+      <p class="muted small" style="margin-top:1rem">
+        This is the same key each time you open this page, so it is safe to scan it,
+        go away, and come back. If your app already has an entry for Nexora Books that
+        is not working, delete it there and scan this again —
+        <a href="/account/two-factor?again=1">or start again with a brand-new key</a>.
+      </p>
+
+      <p class="muted small">
+        This key never leaves your computer. It is not sent anywhere, and there is
+        nothing to sign up for.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>2 · Prove it worked</h2></div>
+    <div class="card-body">
+      {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+      <p class="muted small">
+        Your app is now showing six digits that change every thirty seconds. Type the
+        current ones here. Nothing changes until you do — so if the scan did not work,
+        you cannot lock yourself out.
+      </p>
+      <form method="post" action="/account/two-factor">
+        <div class="field">
+          <label for="code">The six digits</label>
+          <input id="code" name="code" inputmode="numeric" pattern="[0-9 ]*"
+                 maxlength="10" autofocus required class="code-input" placeholder="000000">
+        </div>
+        <button class="btn btn-primary" type="submit">Turn on two-factor sign-in</button>
+        <a class="btn" href="/account">Not now</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

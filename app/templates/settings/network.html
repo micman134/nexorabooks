@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Network access{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Access from other computers</h1></div>
+
+<div class="card">
+  <div class="card-head"><h2>How your staff connect</h2></div>
+  <div class="card-body">
+    <p>{{ APP_NAME }} runs on this computer and serves everyone else on the office network.
+      Leave this computer switched on and {{ APP_NAME }} running, then have staff open a browser and go to:</p>
+
+    {% if addresses %}
+    {% for ip in addresses %}
+    <p style="font-size:1.3rem; font-weight:650" class="mono">{{ 'https' if encrypted else 'http' }}://{{ ip }}:{{ port }}</p>
+    {% endfor %}
+    {% else %}
+    <p class="muted">No network address could be detected. Check that this computer is connected to the network.</p>
+    {% endif %}
+
+    <p class="muted small">Computer name: <span class="mono">{{ host }}</span></p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>The address used in emails</h2></div>
+  <div class="card-body">
+    <p class="muted small">
+      When {{ APP_NAME }} emails somebody a link — an invitation to set their password,
+      for instance — this is the address that link points at. It has to be an address
+      that works on <em>their</em> computer, not on this one.
+    </p>
+
+    {% if outgoing %}
+      <p>Links now go to <strong class="mono">{{ outgoing }}</strong>
+        <span class="muted small">
+          {%- if outgoing_how == 'stated' %} — because you set it below.
+          {%- elif outgoing_how == 'browser' %} — the address you are using right now.
+          {%- elif outgoing_how == 'detected' %} — this computer's address on the office network.
+          {%- endif %}
+        </span>
+      </p>
+    {% else %}
+      <div class="alert alert-danger">
+        <strong>No invitation can be sent yet.</strong>
+        There is no address here that would work on anybody else's computer, so a link
+        built from it would send them to their own machine and the page would not load.
+        Type the address your staff use below.
+      </div>
+    {% endif %}
+
+    <form method="post" action="/settings/network" class="inline-form">
+      <input type="text" name="staff_url" value="{{ staff_url }}" style="max-width:340px"
+             placeholder="{% if addresses %}{{ addresses[0] }}:{{ port }}{% else %}192.168.1.20:8756{% endif %}"
+             aria-label="The address staff use">
+      <button class="btn btn-primary btn-sm" type="submit">Save</button>
+    </form>
+    <p class="muted small" style="margin-top:.6rem">
+      Leave it empty and {{ APP_NAME }} works it out from this computer's network
+      address. Fill it in if you have a fixed address, a name on the network, or
+      anything sitting in front of {{ APP_NAME }}.
+    </p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Encryption</h2>
+    <span class="badge {{ 'badge-paid' if encrypted else 'badge-void' }}">
+      {{ 'on' if encrypted else 'off' }}</span>
+  </div>
+  <div class="card-body">
+    {% if encrypted and not encrypted_now %}
+    <div class="alert alert-warning">
+      Encryption is set up but this copy is still running without it. Close
+      {{ APP_NAME }} and start it again, then use an <span class="mono">https://</span>
+      address.
+    </div>
+    {% elif not encrypted %}
+    <p class="muted small">
+      Right now everything between a staff member's browser and this computer travels
+      unencrypted — their password, their sign-in, and every figure on every screen.
+      On a small office network where you own the cable, that is a reasonable risk.
+      <strong>It stops being reasonable the moment anybody signs in from outside the
+      building</strong>, so turn this on before you set up remote access below.
+    </p>
+    {% else %}
+    <p class="muted small">
+      Every connection to these books is encrypted.
+      {% if tls_settings.get('made_here') %}
+      The certificate was made by this computer, for itself.
+      {% else %}
+      Using the certificate you supplied.
+      {% endif %}
+    </p>
+    {% endif %}
+
+    <form method="post" action="/settings/network/encrypt" style="margin-top:.8rem">
+      <input type="hidden" name="on" value="{{ '0' if encrypted else '1' }}">
+      {% if not encrypted %}
+      <details style="margin-bottom:.9rem">
+        <summary>I already have a certificate (recommended if you do)</summary>
+        <p class="muted small" style="margin-top:.5rem">
+          A certificate from a real authority is better than one this computer makes,
+          because browsers accept it silently. If you use Tailscale for remote access,
+          run <span class="mono">tailscale cert</span> on this machine and it gives you
+          both files free. Leave these empty and one will be made for you.
+        </p>
+        <div class="field"><label for="cp">Certificate file</label>
+          <input id="cp" name="cert_path" placeholder="C:\path\to\server.crt"></div>
+        <div class="field"><label for="kp">Key file</label>
+          <input id="kp" name="key_path" placeholder="C:\path\to\server.key"></div>
+      </details>
+      <button class="btn btn-primary" type="submit">Turn encryption on</button>
+      {% else %}
+      <button class="btn btn-danger btn-sm" type="submit"
+              onsubmit="return confirm('Turn encryption off?')">Turn it off</button>
+      {% endif %}
+    </form>
+
+    {% if certificate %}
+    <p class="muted small" style="margin-top:1rem">
+      Because this certificate was made here rather than bought, each person will see
+      a browser warning the first time — &ldquo;your connection is not private&rdquo;.
+      That is the browser saying it cannot vouch for who this computer is; the
+      encryption itself is exactly as strong either way. They choose
+      <em>Advanced</em> and then <em>Continue</em>, once, per computer.
+    </p>
+    <p class="muted small">
+      To be certain it is this machine and not somebody in between, compare what the
+      browser shows against this fingerprint:
+    </p>
+    <p><code class="secret-key">{{ certificate.fingerprint }}</code></p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Staff in another state or another country</h2></div>
+  <div class="card-body">
+    <p class="muted small">
+      The address above works inside your building and nowhere else. Somebody in
+      another city typing it reaches their own network, not yours.
+    </p>
+    <div class="alert alert-danger">
+      <strong>Do not open your router to the internet to solve this.</strong>
+      That puts your accounts in front of everybody who scans for open ports, which is
+      everybody. Use one of the two ways below instead.
+    </div>
+
+    <h3>A private network — what most businesses should do</h3>
+    <p class="small">
+      A tool such as Tailscale, Twingate or ZeroTier joins your staff's computers to
+      this one over the internet as though they were all in your office, with nothing
+      exposed to anybody else.</p>
+    <p class="muted small">
+      Check the price before you commit. Several of these have a free tier that is
+      for personal use only — Tailscale's free plan says so in as many words — and
+      the business rate is charged per person per month, which for a small team can
+      come to more than this software costs. If you already run your own server,
+      a self-hosted WireGuard connection does the same job for nothing.
+    </p>
+    <ol class="small" style="padding-left:1.15rem">
+      <li>Install it on this computer and sign in.</li>
+      <li>Install it on each staff computer and sign in with the same account.</li>
+      <li>It gives this computer a fixed private address. Put that address in
+        &ldquo;The address used in emails&rdquo; above, so invitations point at it.</li>
+      <li>Staff open that address in their browser and sign in as usual.</li>
+    </ol>
+    <p class="muted small">
+      Your books never leave this computer. Nobody hosts them for you and nobody else
+      can reach them. This computer has to be switched on and running
+      {{ APP_NAME }} whenever somebody wants to work.
+    </p>
+
+    <h3 style="margin-top:1.2rem">Remote desktop — for one person, occasionally</h3>
+    <p class="small">
+      If it is one person now and then, having them take over this computer's screen
+      with Chrome Remote Desktop or AnyDesk is simpler than setting up a network. It
+      does not scale: only one person can use it at a time.
+    </p>
+
+    <h3 style="margin-top:1.2rem">Give every person their own sign-in</h3>
+    <p class="small">
+      Whichever route you take, add each member of staff under
+      <a href="/settings/users">Settings &rsaquo; Users</a> with their own account and
+      the role that matches their job. A shared login makes the audit trail worthless,
+      and it is the audit trail that tells you who entered what when something is
+      wrong. Turn on two-factor sign-in for anyone working from outside the building.
+    </p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Getting it working</h2></div>
+  <div class="card-body">
+    <ol style="padding-left:1.2rem">
+      <li><strong>Everyone needs their own sign-in.</strong> Create a user for each member of staff under
+        Settings › Users, and give them the role that matches their job. Never share one login —
+        the audit trail is only useful when it names a person.</li>
+      <li><strong>Allow {{ APP_NAME }} through Windows Firewall.</strong> The first time it starts,
+        Windows asks whether to allow it on the network. Choose <em>Private networks</em> and allow it.
+        If you missed that prompt, open Windows Defender Firewall › Allow an app, and tick
+        {{ APP_NAME }} for private networks.</li>
+      <li><strong>Give this computer a fixed address.</strong> Ask whoever set up your router to reserve
+        the address above for this machine, so the link doesn't change when it restarts.</li>
+      <li><strong>Bookmark the address</strong> on each staff computer.</li>
+    </ol>
+    <div class="alert alert-warning" style="margin-top:1rem">
+      This is for a trusted office network. Do not open the port to the internet — there is no protection
+      against attacks from outside your building. If you need access from elsewhere, use a VPN.
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>If it will not connect</h2></div>
+  <div class="card-body">
+    <table class="data">
+      <tr><th style="width:40%">The page will not load on another computer</th>
+        <td>Check the firewall step above. Then check both computers are on the same network — a phone
+          on mobile data or a guest Wi-Fi network will not reach it.</td></tr>
+      <tr><th>A link we emailed says "can't reach this page"</th>
+        <td>Look at the address in that link. If it starts <span class="mono">127.0.0.1</span>
+          or <span class="mono">localhost</span>, it means "this computer" — so on the
+          recipient's machine it points at their own computer, which is not running
+          {{ APP_NAME }}. Set the address above and send the invitation again.</td></tr>
+      <tr><th>It worked yesterday, not today</th>
+        <td>The address may have changed. Come back to this page on the main computer to see the current one.</td></tr>
+      <tr><th>Two people editing the same invoice</th>
+        <td>Whoever saves last wins. Posted documents cannot be edited at all, which prevents most of this.</td></tr>
+      <tr><th>Everything is slow</th>
+        <td>Check the network, then the size of the database under Settings. Very large files benefit
+          from archiving old years after they are closed.</td></tr>
+    </table>
+  </div>
+</div>
+{% endblock %}

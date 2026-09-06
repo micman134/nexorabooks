@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+{% block title %}Till{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ session.name }}</h1>
+    <div class="muted small">
+      {{ session.number }} · open since {{ session.opened_at.strftime('%H:%M') }}
+      {% if session.opened_by %}· {{ session.opened_by.display_name }}{% endif %}
+      · {{ figures.count }} sale{{ '' if figures.count == 1 else 's' }} ·
+      drawer should hold {{ figures.expected_cash|money }}
+    </div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/pos/sessions">Past sessions</a>
+    <a class="btn btn-danger" href="/pos/close">Close the till</a>
+  </div>
+</div>
+
+{% if just_sold %}
+<div class="alert alert-success">
+  <strong>{{ just_sold.number }} — {{ just_sold.total|money }} taken.</strong>
+  <a class="btn btn-sm" href="/pos/sale/{{ just_sold.id }}/receipt" target="_blank">Print the receipt</a>
+  <form method="post" action="/pos/sale/{{ just_sold.id }}/refund" style="display:inline"
+        onsubmit="return confirm('Refund {{ just_sold.number }} in full? A credit note is raised and the cash comes out of the drawer.')">
+    <button class="btn btn-sm btn-danger" type="submit">Refund it</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="till">
+  {# ---- the left: what is being bought -------------------------------- #}
+  <div class="till-goods">
+    <div class="card">
+      <div class="card-body">
+        <input id="find" class="till-find" type="search" autocomplete="off"
+               placeholder="Scan a barcode, or type a name or code…" autofocus>
+        <div id="results" class="till-results"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <div class="table-wrap">
+        <table class="data till-basket">
+          <thead>
+            <tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th>
+              <th class="num">Amount</th><th></th></tr>
+          </thead>
+          <tbody id="basket">
+            <tr class="empty"><td colspan="5" class="muted">Nothing in this sale yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# ---- the right: what is being paid --------------------------------- #}
+  <div class="till-pay">
+    <div class="card">
+      <div class="card-body">
+        <div class="till-total">
+          <div class="label">To pay</div>
+          <div id="total" class="value">{{ 0|money }}</div>
+        </div>
+
+        <div class="field">
+          <label for="contact_id">Customer</label>
+          <select id="contact_id">
+            <option value="">Walk-in — no name needed</option>
+            {% for c in customers %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div id="tenders"></div>
+
+        <div class="till-add-tender">
+          {% for value, label in tender_kinds %}
+          <button type="button" class="btn btn-sm" data-add-tender="{{ value }}">{{ label }}</button>
+          {% endfor %}
+        </div>
+
+        <div class="till-change" id="changebox" hidden>
+          <div class="label">Change due</div>
+          <div id="change" class="value">{{ 0|money }}</div>
+        </div>
+        <div class="till-short" id="shortbox" hidden>
+          <div class="label">Still to pay</div>
+          <div id="short" class="value">{{ 0|money }}</div>
+        </div>
+
+        <form method="post" action="/pos/sell" id="sale">
+          <input type="hidden" name="lines" id="lines">
+          <input type="hidden" name="tenders" id="tenderdata">
+          <input type="hidden" name="contact_id" id="contact_field">
+          <button class="btn btn-primary btn-block" id="take" type="submit" disabled>
+            Take the money
+          </button>
+        </form>
+        <button type="button" class="btn btn-block" id="clear">Clear the sale</button>
+      </div>
+    </div>
+
+    {% if recent %}
+    <div class="card" style="margin-top:1rem">
+      <div class="card-head"><h2>This session</h2></div>
+      <div class="table-wrap">
+        <table class="data">
+          <tbody>
+            {% for inv in recent %}
+            <tr>
+              <td><a href="/pos/sale/{{ inv.id }}/receipt" target="_blank">{{ inv.number }}</a></td>
+              <td class="muted small">{{ inv.contact.name if inv.contact }}</td>
+              <td class="num">{{ inv.total|money }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(function () {
+  const accounts = [
+    {% for a in accounts %}{id: {{ a.id }}, name: {{ a.name|tojson }}}{{ "," if not loop.last }}{% endfor %}
+  ];
+  // The company's own currency, so the till reads the way the rest of the
+  // software does — and so a currency with no kobo does not grow two.
+  const decimals = {{ company.currency_decimals if company else 2 }};
+  const symbol = {{ (company.currency_symbol if company else '')|tojson }};
+  const after = {{ 'true' if company and company.currency_symbol_after else 'false' }};
+  const scale = Math.pow(10, decimals);
+
+  const basket = [];
+  const tenders = [];
+
+  function show(minor) {
+    const figure = (Math.round(minor) / scale).toLocaleString(undefined, {
+      minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+    return after ? figure + " " + symbol : symbol + " " + figure;
+  }
+
+  // ---- the basket ------------------------------------------------------
+  const rows = document.getElementById('basket');
+  const totalBox = document.getElementById('total');
+
+  function lineTotal(line) {
+    return Math.round(line.price * line.qty);
+  }
+  function total() {
+    return basket.reduce((sum, line) => sum + lineTotal(line), 0);
+  }
+
+  function draw() {
+    rows.innerHTML = '';
+    if (!basket.length) {
+      rows.innerHTML = '<tr class="empty"><td colspan="5" class="muted">' +
+        'Nothing in this sale yet.</td></tr>';
+    }
+    basket.forEach((line, index) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + escape(line.name) + (line.warn ?
+          ' <span class="badge warning">low stock</span>' : '') + '</td>' +
+        '<td class="num"><input class="num qty" type="number" step="0.001" min="0" value="' +
+          line.qty + '" data-qty="' + index + '"></td>' +
+        '<td class="num"><input class="num price" type="number" step="any" min="0" value="' +
+          (line.price / scale).toFixed(decimals) + '" data-price="' + index + '"></td>' +
+        '<td class="num">' + show(lineTotal(line)) + '</td>' +
+        '<td class="num"><button type="button" class="btn btn-sm btn-danger" data-drop="' +
+          index + '">×</button></td>';
+      rows.appendChild(tr);
+    });
+    totalBox.textContent = show(total());
+    settle();
+  }
+
+  function escape(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+  }
+
+  rows.addEventListener('input', (e) => {
+    const qty = e.target.dataset.qty, price = e.target.dataset.price;
+    if (qty !== undefined) {
+      basket[qty].qty = parseFloat(e.target.value || '0');
+      totalBox.textContent = show(total());
+      settle();
+      e.target.closest('tr').children[3].textContent = show(lineTotal(basket[qty]));
+    } else if (price !== undefined) {
+      basket[price].price = Math.round(parseFloat(e.target.value || '0') * scale);
+      totalBox.textContent = show(total());
+      settle();
+      e.target.closest('tr').children[3].textContent = show(lineTotal(basket[price]));
+    }
+  });
+  rows.addEventListener('click', (e) => {
+    const drop = e.target.dataset.drop;
+    if (drop !== undefined) { basket.splice(drop, 1); draw(); }
+  });
+
+  function add(item) {
+    const already = basket.find((line) => line.item_id === item.id);
+    if (already) { already.qty += 1; }
+    else {
+      basket.push({item_id: item.id, name: item.name, qty: 1, price: item.price,
+                   warn: item.tracked && item.on_hand <= 0});
+    }
+    draw();
+  }
+
+  // ---- finding something ----------------------------------------------
+  const find = document.getElementById('find');
+  const results = document.getElementById('results');
+  let waiting = null;
+
+  find.addEventListener('input', () => {
+    clearTimeout(waiting);
+    const text = find.value.trim();
+    if (!text) { results.innerHTML = ''; return; }
+    waiting = setTimeout(() => look(text), 120);
+  });
+  find.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearTimeout(waiting);
+      look(find.value.trim(), true);
+    }
+  });
+
+  function look(text, chooseOne) {
+    if (!text) return;
+    fetch('/pos/search?q=' + encodeURIComponent(text))
+      .then((r) => r.json())
+      .then((data) => {
+        const items = data.items || [];
+        if (chooseOne && items.length === 1) {
+          add(items[0]);
+          find.value = '';
+          results.innerHTML = '';
+          return;
+        }
+        results.innerHTML = '';
+        if (!items.length) {
+          results.innerHTML = '<div class="muted small">Nothing matches that.</div>';
+          return;
+        }
+        items.forEach((item) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'till-result';
+          button.innerHTML = '<span class="n">' + escape(item.name) + '</span>' +
+            '<span class="p">' + show(item.price) + '</span>' +
+            '<span class="s">' + (item.tracked ? item.on_hand + ' ' +
+              escape(item.unit || '') + ' on record' : 'not stocked') + '</span>';
+          button.addEventListener('click', () => {
+            add(item);
+            find.value = '';
+            results.innerHTML = '';
+            find.focus();
+          });
+          results.appendChild(button);
+        });
+      });
+  }
+
+  // ---- how it is paid --------------------------------------------------
+  const tenderBox = document.getElementById('tenders');
+  const labels = {CASH: 'Cash', CARD: 'Card', TRANSFER: 'Transfer'};
+
+  document.querySelectorAll('[data-add-tender]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const kind = button.dataset.addTender;
+      const owing = Math.max(0, total() - paid());
+      tenders.push({kind: kind, amount: owing, tendered: owing,
+                    account_id: kind === 'CASH' ? '' :
+                      (accounts.length ? accounts[0].id : ''), reference: ''});
+      drawTenders();
+    });
+  });
+
+  function paid() {
+    return tenders.reduce((sum, t) => sum + (t.amount || 0), 0);
+  }
+
+  function drawTenders() {
+    tenderBox.innerHTML = '';
+    tenders.forEach((tender, index) => {
+      const box = document.createElement('div');
+      box.className = 'till-tender';
+      let inner =
+        '<div class="head"><strong>' + labels[tender.kind] + '</strong>' +
+        '<button type="button" class="btn btn-sm btn-danger" data-droptender="' +
+        index + '">×</button></div>' +
+        '<label>Amount<input class="num" type="number" step="any" min="0" value="' +
+        (tender.amount / scale).toFixed(decimals) + '" data-amount="' + index + '"></label>';
+      if (tender.kind === 'CASH') {
+        inner += '<label>Handed over<input class="num" type="number" step="any" min="0" value="' +
+          (tender.tendered / scale).toFixed(decimals) + '" data-tendered="' + index + '"></label>';
+      } else {
+        inner += '<label>Into<select data-account="' + index + '">' +
+          accounts.map((a) => '<option value="' + a.id + '"' +
+            (String(a.id) === String(tender.account_id) ? ' selected' : '') + '>' +
+            escape(a.name) + '</option>').join('') + '</select></label>' +
+          '<label>Reference<input type="text" value="' + escape(tender.reference) +
+          '" data-reference="' + index + '"></label>';
+      }
+      box.innerHTML = inner;
+      tenderBox.appendChild(box);
+    });
+    settle();
+  }
+
+  tenderBox.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.dataset.amount !== undefined) {
+      tenders[t.dataset.amount].amount = Math.round(parseFloat(t.value || '0') * scale);
+      if (tenders[t.dataset.amount].kind === 'CASH' &&
+          tenders[t.dataset.amount].tendered < tenders[t.dataset.amount].amount) {
+        tenders[t.dataset.amount].tendered = tenders[t.dataset.amount].amount;
+      }
+    } else if (t.dataset.tendered !== undefined) {
+      tenders[t.dataset.tendered].tendered = Math.round(parseFloat(t.value || '0') * scale);
+    } else if (t.dataset.account !== undefined) {
+      tenders[t.dataset.account].account_id = t.value;
+    } else if (t.dataset.reference !== undefined) {
+      tenders[t.dataset.reference].reference = t.value;
+    }
+    settle();
+  });
+  tenderBox.addEventListener('click', (e) => {
+    const drop = e.target.dataset.droptender;
+    if (drop !== undefined) { tenders.splice(drop, 1); drawTenders(); }
+  });
+
+  // ---- what is owed, what comes back ----------------------------------
+  const changeBox = document.getElementById('changebox');
+  const shortBox = document.getElementById('shortbox');
+  const take = document.getElementById('take');
+
+  function settle() {
+    const owing = total() - paid();
+    const change = tenders.filter((t) => t.kind === 'CASH')
+      .reduce((sum, t) => sum + Math.max(0, (t.tendered || 0) - (t.amount || 0)), 0);
+
+    shortBox.hidden = owing <= 0;
+    document.getElementById('short').textContent = show(Math.max(0, owing));
+    changeBox.hidden = change <= 0;
+    document.getElementById('change').textContent = show(change);
+    take.disabled = !(basket.length && owing === 0 && total() > 0);
+  }
+
+  // ---- taking the money -----------------------------------------------
+  document.getElementById('sale').addEventListener('submit', () => {
+    document.getElementById('lines').value = JSON.stringify(basket.map((line) => ({
+      item_id: line.item_id, description: line.name, qty: line.qty,
+      price: (line.price / scale).toFixed(decimals)
+    })));
+    document.getElementById('tenderdata').value = JSON.stringify(tenders.map((t) => ({
+      kind: t.kind, amount: (t.amount / scale).toFixed(decimals),
+      tendered: ((t.tendered || t.amount) / scale).toFixed(decimals),
+      account_id: t.account_id || '', reference: t.reference || ''
+    })));
+    document.getElementById('contact_field').value =
+      document.getElementById('contact_id').value;
+    take.disabled = true;
+  });
+
+  document.getElementById('clear').addEventListener('click', () => {
+    basket.length = 0;
+    tenders.length = 0;
+    drawTenders();
+    draw();
+    find.focus();
+  });
+
+  draw();
+})();
+</script>
+{% endblock %}

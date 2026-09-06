@@ -1,0 +1,228 @@
+Nexora Books 2.8.0 — how to install it on your Windows computer
+=============================================================
+
+You need Python on the computer once, to build the application. After that the
+application runs on its own and Python is never needed again on any machine you
+copy it to.
+
+
+STEP 1 — Install Python (once, on the main computer)
+----------------------------------------------------
+Go to  https://www.python.org/downloads/  and download Python for Windows.
+
+When the installer opens, TICK THE BOX at the bottom that says
+"Add python.exe to PATH" before you click Install. This matters.
+
+
+STEP 2 — Build Nexora Books
+-------------------------
+Unzip this folder somewhere sensible, for example  C:\Nexora Books
+
+Double-click  build_windows.bat
+
+It installs what it needs, runs all 1,294 tests, and packages everything.
+Give it a few minutes the first time. When it finishes you will have:
+
+    dist\NexoraBooks\NexoraBooks.exe          the application
+    dist\NexoraBooks-2.8.0-Setup.exe          an installer, if you have Inno Setup
+
+Inno Setup is free, from https://jrsoftware.org/isdl.php. With it installed the
+build makes a proper Windows installer that puts Nexora Books in the Start menu,
+offers a desktop shortcut, opens the firewall for your office network, and
+uninstalls cleanly — without ever touching your books.
+
+Without it you still get a working application: copy the whole
+dist\NexoraBooks folder to any Windows computer and run it there.
+
+
+STEP 3 — Run it
+---------------
+Run the installer, or double-click  dist\NexoraBooks\NexoraBooks.exe
+
+Windows will ask whether to allow it on the network. Choose PRIVATE NETWORKS
+and allow — without this your staff cannot reach it from their computers.
+
+Sign in as       admin
+with password    admin123
+
+You will be asked to choose a new password straight away. Do it.
+
+
+IN A HURRY? TRY IT FIRST WITHOUT BUILDING
+------------------------------------------
+After Step 1, open a Command Prompt in this folder and run:
+
+    pip install -r requirements.txt
+    python seed_demo.py
+    Start-NexoraBooks.bat
+
+That loads a demo company with five months of trading, payroll, stock, assets
+and reports already in it, so you can look around before committing your own
+figures. Sign in as admin / admin123.
+
+When you are ready for your own books, delete the demo folder it created
+(the application tells you where) and start fresh.
+
+
+FIRST THING: YOUR COUNTRY AND YOUR CURRENCY
+-------------------------------------------
+On the setup screen, pick your country. That fills in your currency, what your
+country calls its sales tax, what a tax ID and a registration number are called,
+and how dates are written. Change any of it afterwards — you know your country
+better than the list does.
+
+Choose the currency carefully. Once you post your first transaction it is fixed,
+because every figure is stored as a whole number of its smallest unit and
+switching later would relabel your accounts rather than convert them. To keep
+books in a second currency, make a second company.
+
+
+IF YOU ARE NOT IN NIGERIA: SET UP PAYROLL PROPERLY
+--------------------------------------------------
+Nigeria's tax bands and contributions are built in. Everywhere else, go to
+Payroll > Payroll scheme and enter your own bands and contributions.
+
+Then — and this matters — go to Payroll > Check the scheme, take one payslip
+whose answer you already know, and make sure the software reproduces it before
+you pay anybody from it. Rates you type in yourself are only as right as the
+typing, and a wrong payslip is somebody's rent.
+
+
+YOUR 30 DAYS, AND YOUR LICENCE
+------------------------------
+A fresh installation runs for 30 days with nothing to enter. After that,
+Settings > Licence shows a code for this computer; send it to whoever sold you
+the software and paste back the licence they send you.
+
+If the licence lapses, nothing is taken away from you. Every screen still opens,
+every report still prints and exports, and you can still take a full backup.
+What pauses is entering new transactions.
+
+
+BEFORE STAFF CAN RAISE REQUISITIONS
+-----------------------------------
+Under Settings > Users, for each person set:
+
+  * their manager        — where their requisitions go for approval
+  * their bank details   — where finance sends the money
+
+Tick "can release the money" on your finance manager, and "signs off
+requisitions over the limit" on yourself or a director. Set the limit itself
+under Settings > Company details.
+
+Somebody with no manager cannot raise a requisition at all — the system refuses
+it rather than letting it sit with nobody to approve it.
+
+
+YOUR STAFF
+----------
+They do not install anything. On the main computer open
+Settings > Access from other computers. It shows an address like
+
+    http://192.168.1.20:8756
+
+Your staff open that address in Chrome, Edge or Firefox and bookmark it.
+Give each person their own login under Settings > Users — never share one
+account, because the audit trail is only worth having when it names a person.
+
+The main computer has to be switched on and running Nexora Books for them to work.
+
+
+WHERE YOUR BOOKS ARE KEPT
+-------------------------
+Everything lives in one folder on your computer, with one database file per
+company. Settings > Backup & restore makes a copy you can put on a flash drive
+or in Google Drive. Do this weekly. Nothing is ever sent anywhere.
+
+
+WHAT YOUR INVOICE EMAILS SAY
+----------------------------
+If your business says the same thing on every invoice — thank you for
+ordering, here is how to pay, send us the receipt — write it once under
+Settings > Email, in "What your invoices say". It becomes the starting point
+for every invoice, quotation and credit note you email, and can still be edited
+on the send screen before anything goes out.
+
+Put {customer}, {first_name}, {number}, {amount}, {due_date}, {item} and the
+rest into the wording and the real figures take their place. {item} is what the
+first line of the document says, which for a training business is the course
+name. The full list, with an example of how yours will read, is on that screen.
+
+A line that mentions something a particular document does not have — a credit
+note has no due date — is left out of that message rather than sent with a gap
+in it.
+
+
+MOVING TO A NEW VERSION
+-----------------------
+Your books are NOT in the program folder. They live in your own Windows
+profile, under AppData, and every version opens the same ones. So updating is:
+unzip the new version wherever you like, and start it.
+
+One thing catches people out. CLOSE THE OLD VERSION FIRST. Only one copy can
+use the address at a time, so if the old one is still running the new one
+cannot take over — and until version 2.8.3 it would quietly show you the old
+copy instead, which looks exactly like the update having done nothing.
+
+To be sure it is closed: close every Nexora Books window, including any black
+command window behind them; then press Ctrl+Shift+Esc and, under Processes, end
+anything called NexoraBooks, python.exe or py.exe. Restarting the computer does
+the same job with less hunting.
+
+Then start the new version and look under your company name in the top left
+corner. It shows the version that is actually running. If it does not say the
+one you just unzipped, an older copy is still up.
+
+From 2.8.3 onwards the program checks this for you and says so plainly instead
+of opening the older copy.
+
+
+WHEN YOU INVITE STAFF BY EMAIL
+------------------------------
+The invitation carries a link, and that link has to point at an address that
+works on THEIR computer. If you are sitting at the computer Nexora Books runs
+on, your own browser probably says 127.0.0.1 — and 127.0.0.1 means "the
+computer I am using", so on your colleague's machine it points at their own
+computer and the page will not open.
+
+Nexora Books works this out for you: it finds this computer's address on the
+office network and builds the link from that instead. If it cannot find one, it
+refuses to send rather than posting a link that cannot work, and tells you so.
+
+If your staff reach these books at some other address — a fixed IP, a name on
+the network, anything sitting in front of Nexora Books — put it in under
+Settings > Access from other computers, in "The address used in emails". Every
+link sent out is built from it.
+
+If somebody has already been sent a link that will not open: set the address,
+then invite them again from Settings > Users. The new link replaces the old one.
+
+
+LOCKED OUT BY TWO-FACTOR SIGN-IN
+--------------------------------
+If somebody loses the phone that produces their six-digit codes, they use one
+of the recovery codes they saved when they set it up. If those are gone too,
+any administrator clears it for them from Settings > Users.
+
+And if the person locked out IS the only administrator, so there is nobody left
+to ask: close Nexora Books, then double-click
+
+    Reset-TwoFactor
+
+in this folder. (If you are running the built application rather than the
+source, open a Command Prompt in the folder holding NexoraBooks.exe and run
+"NexoraBooks.exe --reset-two-factor" instead.) It asks which company and which
+person, turns the second step off for them, and writes what it did to that
+company's audit trail. Passwords, invoices and everything else are untouched.
+
+One thing worth knowing before you turn two-factor on: the six digits depend on
+this computer's clock being right. If Windows has drifted by more than half a
+minute the codes will be refused, and Nexora Books will tell you so in as many
+words rather than leaving you guessing. Settings > Time & language > Date &
+time, and turn on "Set time automatically".
+
+
+IF SOMETHING GOES WRONG
+-----------------------
+README.md has a troubleshooting section covering the usual problems — the
+firewall, the port, a forgotten password, and restoring from a backup.

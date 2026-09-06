@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Fixed assets{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Fixed asset register</h1>
+    <div class="muted small">Everything the business owns and uses — vehicles, generators, machines, furniture.</div>
+  </div>
+  <div class="actions">
+    {% if can(user, 'entry') %}<a class="btn btn-primary" href="/assets/new">New asset</a>{% endif %}
+    <a class="btn" href="/assets/depreciation">Run depreciation</a>
+    <a class="btn" href="/assets/schedule">Asset schedule</a>
+    <a class="btn" href="/assets?format=csv&amp;status={{ status }}">Export</a>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Assets in use</div>
+    <div class="value">{{ totals.count }}</div>
+    {% if totals.disposed %}<div class="sub">{{ totals.disposed }} disposed or written off</div>{% endif %}</div>
+  <div class="stat"><div class="label">Cost</div><div class="value">{{ totals.cost|money }}</div></div>
+  <div class="stat"><div class="label">Depreciation to date</div>
+    <div class="value">{{ totals.depreciation|money }}</div></div>
+  <div class="stat"><div class="label">Net book value</div>
+    <div class="value">{{ totals.nbv|money }}</div>
+    <div class="sub">What the balance sheet should show</div></div>
+</div>
+
+{% if totals.fully_depreciated %}
+<div class="alert alert-info no-print">
+  {{ totals.fully_depreciated }} asset{{ 's are' if totals.fully_depreciated != 1 else ' is' }} fully written down
+  but still in use. They stay on the register at nil value until they are sold or scrapped.
+</div>
+{% endif %}
+
+<form class="filters" method="get">
+  <div class="field" style="flex:1"><label for="q">Search</label>
+    <input id="q" type="search" name="q" value="{{ q }}"
+           placeholder="Name, number, registration, location or who holds it"></div>
+  <div class="field"><label for="cat">Category</label>
+    <select id="cat" name="category">
+      <option value="">All categories</option>
+      {% for c in categories %}
+      <option value="{{ c.id }}" {{ 'selected' if category_id == c.id }}>{{ c.name }}</option>
+      {% endfor %}
+    </select></div>
+  <div class="field"><label for="st">Status</label>
+    <select id="st" name="status">
+      <option value="ACTIVE" {{ 'selected' if status == 'ACTIVE' }}>In use</option>
+      <option value="DISPOSED" {{ 'selected' if status == 'DISPOSED' }}>Disposed</option>
+      <option value="WRITTEN_OFF" {{ 'selected' if status == 'WRITTEN_OFF' }}>Written off</option>
+      <option value="" {{ 'selected' if not status }}>Everything</option>
+    </select></div>
+  <button class="btn" type="submit">Search</button>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr>
+        <th>Number</th><th>Asset</th><th>Category</th><th>In service</th>
+        <th>Depreciation</th><th class="num">Cost</th>
+        <th class="num">Written down</th><th class="num">Net book value</th>
+      </tr></thead>
+      <tbody>
+        {% for a in items %}
+        <tr>
+          <td class="mono">{{ a.number }}</td>
+          <td>
+            <a href="/assets/{{ a.id }}">{{ a.name }}</a>
+            {% if a.status != 'ACTIVE' %}
+              <span class="badge badge-void">{{ 'disposed' if a.status == 'DISPOSED' else 'written off' }}</span>
+            {% elif a.is_fully_depreciated and a.method != 'NONE' %}
+              <span class="badge badge-part">fully written down</span>
+            {% endif %}
+            {% if a.registration_no %}<div class="muted small">{{ a.registration_no }}</div>
+            {% elif a.serial_no %}<div class="muted small">{{ a.serial_no }}</div>{% endif %}
+          </td>
+          <td class="small">{{ a.category.name if a.category else '—' }}
+            {% if a.location %}<div class="muted small">{{ a.location }}</div>{% endif %}</td>
+          <td class="small">{{ a.in_service_date|dt }}</td>
+          <td class="small">{{ a.method_label }}
+            {% if a.method == 'REDUCING' %}<div class="muted small">{{ a.rate_pct }}% a year</div>
+            {% elif a.method == 'STRAIGHT' %}<div class="muted small">{{ (a.useful_life_months / 12)|round(1) }} years</div>{% endif %}</td>
+          <td class="num">{{ a.cost|money }}</td>
+          <td class="num muted">{{ a.accumulated_depreciation|money }}</td>
+          <td class="num"><b>{{ a.net_book_value|money }}</b></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty">
+          Nothing on the register yet.
+          {% if can(user, 'entry') %}<a href="/assets/new">Add the first asset</a> — a vehicle, a generator, a machine.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+      {% if items %}
+      <tfoot><tr>
+        <th colspan="5">{{ items|length }} asset{{ 's' if items|length != 1 }}</th>
+        <th class="num">{{ shown_cost|money }}</th><th></th>
+        <th class="num">{{ shown_nbv|money }}</th>
+      </tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+<p class="muted small no-print">
+  Categories decide which accounts an asset uses and how fast it depreciates.
+  {% if can(user, 'journal') %}<a href="/assets/categories">Manage categories</a>.{% endif %}
+</p>
+{% endblock %}

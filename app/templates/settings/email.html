@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Email{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Email</h1>
+  <div class="actions"><a class="btn" href="/settings">Back to settings</a></div>
+</div>
+
+<div class="alert {{ 'alert-info' if mail.ready and not mail.last_error else ('alert-danger' if mail.last_error else 'alert-warning') }}">
+  {% if mail.last_error %}
+    <strong>The last attempt failed.</strong> {{ mail.last_error }}
+  {% elif mail.ready %}
+    Sending from <strong>{{ mail.from_email }}</strong>{% if mail.last_ok %}, last used {{ mail.last_ok }}{% endif %}.
+  {% else %}
+    Not set up yet. Fill this in and invoices, quotations and statements can go
+    straight to the customer as a PDF, from your own address.
+  {% endif %}
+</div>
+
+<form method="post" action="/settings/email" style="max-width:900px">
+  <fieldset>
+    <legend>Your mail provider</legend>
+    <div class="field">
+      <label for="pre">Start from a common one</label>
+      <select id="pre">
+        <option value="">Choose…</option>
+        {% for name, (host, port, security) in presets.items() %}
+        <option value="{{ host }}|{{ port }}|{{ security }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">This only fills the three boxes below. Change them freely.</div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="h">Outgoing mail server (SMTP)</label>
+        <input id="h" name="host" value="{{ mail.host }}" placeholder="smtp.gmail.com"></div>
+      <div class="field"><label for="p">Port</label>
+        <input id="p" class="num" name="port" value="{{ mail.port }}" style="max-width:120px"></div>
+      <div class="field"><label for="s">Security</label>
+        <select id="s" name="security">
+          {% for key, label in securities.items() %}
+          <option value="{{ key }}" {{ 'selected' if mail.security == key }}>{{ label }}</option>
+          {% endfor %}
+        </select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="u">Username</label>
+        <input id="u" name="username" value="{{ mail.username }}" autocomplete="off"></div>
+      <div class="field"><label for="pw">Password</label>
+        <input id="pw" type="password" name="password" autocomplete="new-password"
+               placeholder="{{ '••••••••  (leave empty to keep it)' if mail.password else '' }}">
+        <div class="hint">
+          <strong>Gmail and Microsoft 365 will not accept your ordinary password
+          here.</strong> In your mail account's security settings create an
+          <em>app password</em> and paste that instead.
+        </div></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>How it appears to your customers</legend>
+    <div class="field-row">
+      <div class="field"><label for="fn">From name</label>
+        <input id="fn" name="from_name" value="{{ mail.from_name }}"
+               placeholder="{{ company.name }}"></div>
+      <div class="field"><label for="fe">From address</label>
+        <input id="fe" type="email" name="from_email" value="{{ mail.from_email }}"
+               placeholder="accounts@yourdomain.com">
+        <div class="hint">Usually the same account you signed in with above —
+          most providers refuse to send as anybody else.</div></div>
+      <div class="field"><label for="rt">Replies go to</label>
+        <input id="rt" type="email" name="reply_to" value="{{ mail.reply_to }}"
+               placeholder="optional"></div>
+    </div>
+    <div class="field"><label for="sg">Signature added to every message</label>
+      <textarea id="sg" name="signature" rows="3"
+                placeholder="{{ company.name }}&#10;{{ company.phone }}">{{ mail.signature }}</textarea></div>
+  </fieldset>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Save</button>
+  </div>
+</form>
+
+<div class="card" style="max-width:900px; margin-top:1.5rem">
+  <div class="card-head"><h2>Send yourself a test</h2></div>
+  <div class="card-body">
+    <p class="small">
+      Do this before you send anything to a customer. It saves what is in the form
+      above first, so you can change a setting and try again in one click.
+    </p>
+    <form method="post" action="/settings/email/test">
+      <input type="hidden" name="host" value=""> {# filled by the script below #}
+      <div class="field-row">
+        <div class="field"><label for="to">Send the test to</label>
+          <input id="to" type="email" name="to" value="{{ mail.from_email }}" required></div>
+      </div>
+      <button class="btn" type="submit">Send a test message</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="max-width:900px; margin-top:1.5rem">
+  <div class="card-head"><h2>What your invoices say</h2></div>
+  <div class="card-body">
+    <p class="muted small">
+      The covering message that goes out with every invoice, quotation and credit note.
+      Leave both boxes empty for the plain wording built in. Whatever you put here is
+      only the starting point — it can still be edited on the send screen before
+      anything goes out.
+    </p>
+
+    <form method="post" action="/settings/email/wording">
+      <div class="field">
+        <label for="invoice_email_subject">Subject line</label>
+        <input id="invoice_email_subject" name="invoice_email_subject"
+               value="{{ company.invoice_email_subject or '' }}"
+               placeholder="{document} {number} from {company}">
+      </div>
+      <div class="field">
+        <label for="invoice_email_body">The message</label>
+        <textarea id="invoice_email_body" name="invoice_email_body" rows="14"
+                  placeholder="Dear {first_name},&#10;&#10;Please find attached {document} {number} for {amount}.&#10;Payment is due by {due_date}.&#10;&#10;With thanks,&#10;{company}">{{ company.invoice_email_body or '' }}</textarea>
+      </div>
+      <button class="btn btn-primary" type="submit">Save the wording</button>
+    </form>
+
+    <h3 style="margin-top:1.4rem">What you can put in it</h3>
+    <p class="muted small">
+      Type any of these and the real figures take their place when the message is sent.
+      If a document does not have one of them — a credit note has no due date — the whole
+      line it appears on is left out, so one message can serve invoices, quotations and
+      credit notes without reading oddly on any of them.
+    </p>
+    <table class="data">
+      <tbody>
+        {% for token, meaning in placeholders %}
+        <tr><th style="width:170px" class="mono">{{ token }}</th><td>{{ meaning }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if preview_body %}
+    <h3 style="margin-top:1.4rem">How it comes out</h3>
+    <p class="muted small">Using an example invoice, so you can see it before a customer does.</p>
+    <p class="mono small"><strong>{{ preview_subject }}</strong></p>
+    <pre class="preview-mail">{{ preview_body }}</pre>
+    {% endif %}
+  </div>
+</div>
+
+{% if recent %}
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head"><h2>Recently sent</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>When</th><th>To</th><th>About</th><th>Sent by</th><th></th></tr></thead>
+      <tbody>
+        {% for row in recent %}
+        <tr>
+          <td>{{ row.sent_at|dt('%d %b %Y, %H:%M') }}</td>
+          <td class="small">{{ row.to_address }}</td>
+          <td class="small">{{ row.subject }}</td>
+          <td class="small muted">{{ row.sent_by.display_name if row.sent_by else '' }}</td>
+          <td>{% if row.ok %}<span class="badge badge-paid">sent</span>
+              {% else %}<span class="badge badge-void" title="{{ row.error }}">failed</span>{% endif %}</td>
+        </tr>
+        {% if not row.ok %}
+        <tr><td></td><td colspan="4" class="muted small">{{ row.error }}</td></tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+// Choosing a provider fills the server, port and security boxes. Nothing else.
+(function () {
+  var pre = document.getElementById('pre');
+  if (!pre) { return; }
+  pre.addEventListener('change', function () {
+    if (!pre.value) { return; }
+    var parts = pre.value.split('|');
+    document.getElementById('h').value = parts[0];
+    document.getElementById('p').value = parts[1];
+    document.getElementById('s').value = parts[2];
+  });
+
+  // The test form sends whatever is currently typed above, so a setting can be
+  // corrected and tried without saving first.
+  var test = document.querySelector('form[action="/settings/email/test"]');
+  var main = document.querySelector('form[action="/settings/email"]');
+  if (!test || !main) { return; }
+  test.addEventListener('submit', function () {
+    ['host', 'port', 'security', 'username', 'password', 'from_name',
+     'from_email', 'reply_to', 'signature'].forEach(function (name) {
+      var source = main.querySelector('[name="' + name + '"]');
+      if (!source) { return; }
+      var carried = test.querySelector('input[type=hidden][name="' + name + '"]');
+      if (!carried) {
+        carried = document.createElement('input');
+        carried.type = 'hidden';
+        carried.name = name;
+        test.appendChild(carried);
+      }
+      carried.value = source.value;
+    });
+  });
+})();
+</script>
+{% endblock %}

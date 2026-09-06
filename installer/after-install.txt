@@ -1,0 +1,54 @@
+Nexora Books is installed.
+
+
+STARTING IT
+-----------
+Open it from the Start menu, or from the desktop shortcut if you asked for one.
+A window opens with your books in it, and a small console window stays behind it
+showing the address your staff use. Leave that console open while anyone is
+working — closing it signs everyone out.
+
+
+SIGNING IN THE FIRST TIME
+-------------------------
+    username   admin
+    password   admin123
+
+It will make you choose a new password straight away. Do it, and write it down
+somewhere that is not this computer.
+
+
+YOUR STAFF
+----------
+They install nothing. On this computer open Settings > Access from other
+computers; it shows an address like
+
+    http://192.168.1.20:8756
+
+They open that in Chrome, Edge or Firefox and bookmark it. Give each person
+their own login under Settings > Users — never share one account, because an
+audit trail is only worth having when it names a person.
+
+
+THE FIRST FIVE MINUTES
+----------------------
+1. Settings > Company details — your country, your currency, your address.
+   Choose the currency carefully: it is fixed once you post your first
+   transaction.
+2. Settings > Backup and restore — set the automatic backup, and point the
+   second copy at a flash drive or a synced folder. This is the setting that
+   matters most on this whole list.
+3. Settings > Email — so invoices can go straight to customers as a PDF.
+4. Bring in your data — customers, suppliers and opening balances out of a
+   spreadsheet, rather than typing them.
+5. If you are outside Nigeria: Payroll > Payroll scheme, then Payroll > Check
+   the scheme, before you pay anybody.
+
+
+YOUR BOOKS
+----------
+Everything you enter is kept on this computer, in one folder, with one file per
+company. Nothing is sent anywhere and nothing needs the internet. Settings >
+Diagnostics will tell you exactly where the folder is.
+
+Uninstalling Nexora Books does not delete your books.

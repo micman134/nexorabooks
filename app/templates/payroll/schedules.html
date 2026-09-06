@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter %}
+{% block title %}Payroll schedules{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'PAYE schedule' if kind == 'paye' else ('Pension schedule' if kind == 'pension' else 'Payroll summary') }}</h1>
+    <div class="muted small">{{ company.name }} · {{ start|dt }} to {{ end|dt }} ·
+      {{ runs|length }} pay run(s)</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="?kind={{ kind }}&start={{ start }}&end={{ end }}&format=csv">Export CSV</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<div class="tabs no-print">
+  <a href="?kind=paye&start={{ start }}&end={{ end }}" class="{{ 'active' if kind == 'paye' }}">PAYE schedule</a>
+  <a href="?kind=pension&start={{ start }}&end={{ end }}" class="{{ 'active' if kind == 'pension' }}">Pension schedule</a>
+  <a href="?kind=summary&start={{ start }}&end={{ end }}" class="{{ 'active' if kind == 'summary' }}">Full summary</a>
+</div>
+
+{{ period_filter(preset, start, end,
+   '<input type="hidden" name="kind" value="' ~ kind ~ '">') }}
+
+{% if kind == 'paye' %}
+<div class="alert alert-info">
+  Hand this to the Internal Revenue Service of the state where your staff live
+  {% if settings.paye_state %}— set to <strong>{{ settings.paye_state }}</strong> in payroll settings{% endif %}.
+  PAYE is due by the 10th of the month following deduction.
+</div>
+{% elif kind == 'pension' %}
+<div class="alert alert-info">
+  Hand this to your pension fund administrators. Contributions are due within 7 working days
+  of paying salaries.
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Staff no.</th><th>Name</th>
+          {% if kind == 'paye' %}<th>Tax ID</th>{% endif %}
+          {% if kind == 'pension' %}<th>RSA PIN</th><th>PFA</th>{% endif %}
+          <th class="num">Gross</th>
+          {% if kind != 'pension' %}<th class="num">PAYE</th>{% endif %}
+          {% if kind != 'paye' %}
+          <th class="num">Pension (staff)</th><th class="num">Pension (you)</th><th class="num">Total pension</th>
+          {% endif %}
+          {% if kind == 'summary' %}<th class="num">NHF</th><th class="num">Net pay</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="mono">{{ r.staff_no }}</td>
+          <td><a href="/payroll/employees/{{ r.employee.id }}">{{ r.name }}</a></td>
+          {% if kind == 'paye' %}
+          <td class="mono small">{{ r.employee.tin if r.employee and r.employee.tin else '—' }}</td>
+          {% endif %}
+          {% if kind == 'pension' %}
+          <td class="mono small">{{ r.employee.pension_pin if r.employee else '' or '—' }}</td>
+          <td class="small">{{ r.employee.pfa_name if r.employee else '' or '—' }}</td>
+          {% endif %}
+          <td class="num">{{ r.gross|money }}</td>
+          {% if kind != 'pension' %}<td class="num strong">{{ r.paye|money }}</td>{% endif %}
+          {% if kind != 'paye' %}
+          <td class="num">{{ r.pension_ee|money }}</td>
+          <td class="num">{{ r.pension_er|money }}</td>
+          <td class="num strong">{{ (r.pension_ee + r.pension_er)|money }}</td>
+          {% endif %}
+          {% if kind == 'summary' %}
+          <td class="num">{{ r.nhf|money }}</td>
+          <td class="num strong">{{ r.net|money }}</td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="empty">No posted payroll in this period.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if rows %}
+      <tfoot>
+        <tr class="grand">
+          <td colspan="{{ 2 + (1 if kind == 'paye' else 0) + (2 if kind == 'pension' else 0) }}">Totals</td>
+          <td class="num">{{ totals.gross|money }}</td>
+          {% if kind != 'pension' %}<td class="num">{{ totals.paye|money }}</td>{% endif %}
+          {% if kind != 'paye' %}
+          <td class="num">{{ totals.pension_ee|money }}</td>
+          <td class="num">{{ totals.pension_er|money }}</td>
+          <td class="num">{{ (totals.pension_ee + totals.pension_er)|money }}</td>
+          {% endif %}
+          {% if kind == 'summary' %}
+          <td class="num">{{ totals.nhf|money }}</td>
+          <td class="num">{{ totals.net|money }}</td>
+          {% endif %}
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Bank schedule{% endblock %}
+{% block content %}
+<div class="page-head no-print">
+  <div>
+    <h1>Salary payment schedule</h1>
+    <div class="muted small">{{ run.number }} · {{ run.period_end|dt('%B %Y') }} · pay date {{ run.pay_date|dt }}</div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+    <a class="btn" href="/payroll/runs/{{ run.id }}">Back to the run</a>
+  </div>
+</div>
+
+<div class="doc">
+  <div class="doc-head">
+    <div class="co">
+      {% if company.logo_file %}<img src="/company-logo" alt="{{ company.name }}" class="doc-logo">{% endif %}
+      <h2>{{ company.name }}</h2>
+      <div class="muted small">Salary transfer schedule for {{ run.period_end|dt('%B %Y') }}</div>
+    </div>
+    <div class="doc-title">
+      <div class="lbl">Total to transfer</div>
+      <div style="font-size:1.6rem; font-weight:700; color:var(--green-dark)">{{ run.net_total|money }}</div>
+      <div class="muted small">{{ run.employee_count }} beneficiaries</div>
+    </div>
+  </div>
+
+  <table class="data">
+    <thead><tr><th>#</th><th>Beneficiary</th><th>Bank</th><th>Account number</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      {% for s in run.payslips %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ s.employee.bank_account_name if s.employee and s.employee.bank_account_name else s.employee_name }}
+          <div class="muted small">{{ s.staff_no }}</div></td>
+        <td>{{ s.bank_name or '—' }}</td>
+        <td class="mono">{{ s.bank_account_no or '—' }}</td>
+        <td class="num strong">{{ s.net_pay|money }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot><tr class="grand"><td colspan="4">Total</td><td class="num">{{ run.net_total|money }}</td></tr></tfoot>
+  </table>
+
+  <div class="doc-foot">
+    <p>Prepared {{ today() if today is defined else run.pay_date|dt }} · {{ run.number }}</p>
+    <div style="display:flex; gap:3rem; margin-top:2.5rem">
+      <div>_______________________________<br>Prepared by</div>
+      <div>_______________________________<br>Approved by</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

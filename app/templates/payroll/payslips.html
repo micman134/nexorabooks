@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% from "_macros.html" import letterhead %}
+{% block title %}Payslips{% endblock %}
+{% block content %}
+<div class="page-head no-print">
+  <div>
+    <h1>{{ 'Payslip' if single else 'Payslips' }} — {{ run.period_end|dt('%B %Y') }}</h1>
+    <div class="muted small">{{ run.number }} · {{ run.period_start|dt }} to {{ run.period_end|dt }}</div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+    {% if single and slips %}
+    <a class="btn" href="/payroll/payslips/{{ slips[0].id }}/pdf">Download PDF</a>
+    {% endif %}
+    {% if slips|length > 1 %}
+    <a class="btn" href="/send/payslips/run/{{ run.id }}">Email them all</a>
+    {% else %}
+    <a class="btn" href="/send/payslip/{{ slips[0].id }}">Email it</a>
+    {% endif %}
+    <a class="btn" href="/payroll/runs/{{ run.id }}">Back to the run</a>
+  </div>
+</div>
+
+{% for s in slips %}
+<div class="doc" style="margin-bottom:1.5rem; page-break-after:always">
+  {% if not single %}
+  <div class="no-print right">
+    <a class="btn btn-sm" href="/payroll/payslips/{{ s.id }}/pdf">PDF</a>
+    <a class="btn btn-sm" href="/send/payslip/{{ s.id }}">Email</a>
+  </div>
+  {% endif %}
+  <div class="doc-head">
+    {{ letterhead(company) }}
+    <div class="doc-title">
+      <h1>Payslip</h1>
+      <table style="margin-left:auto; font-size:13px">
+        <tr><td class="muted right" style="padding-right:.5rem">Period</td>
+          <td class="strong">{{ run.period_start|dt('%d %b') }} – {{ run.period_end|dt }}</td></tr>
+        <tr><td class="muted right" style="padding-right:.5rem">Pay date</td><td>{{ run.pay_date|dt }}</td></tr>
+        <tr><td class="muted right" style="padding-right:.5rem">Run</td><td>{{ run.number }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="doc-parties">
+    <div>
+      <div class="lbl">Employee</div>
+      <strong>{{ s.employee_name }}</strong><br>
+      <span class="muted small">
+        {{ s.staff_no }}{% if s.job_title %} · {{ s.job_title }}{% endif %}
+        {% if s.department %}<br>{{ s.department }}{% endif %}
+        {% if s.employee and s.employee.tin %}<br>TIN: {{ s.employee.tin }}{% endif %}
+        {% if s.employee and s.employee.pension_pin %}<br>RSA PIN: {{ s.employee.pension_pin }}{% endif %}
+      </span>
+    </div>
+    <div class="right">
+      <div class="lbl">Net pay</div>
+      <div style="font-size:1.7rem; font-weight:700; color:var(--green-dark)">{{ s.net_pay|money }}</div>
+      {% if s.bank_name %}<div class="muted small">{{ s.bank_name }} {{ s.bank_account_no }}</div>{% endif %}
+    </div>
+  </div>
+
+  <div style="display:flex; gap:1.5rem; flex-wrap:wrap">
+    <div style="flex:1; min-width:260px">
+      <table class="data">
+        <thead><tr><th>Earnings</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+          {% for l in s.lines if l.kind == 'EARNING' %}
+          <tr><td>{{ l.name }}</td><td class="num">{{ l.amount|money }}</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot><tr><td>Gross pay</td><td class="num">{{ s.gross|money }}</td></tr></tfoot>
+      </table>
+    </div>
+    <div style="flex:1; min-width:260px">
+      <table class="data">
+        <thead><tr><th>Deductions</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+          {% for l in s.lines if l.kind == 'DEDUCTION' %}
+          <tr><td>{{ l.name }}</td><td class="num">{{ l.amount|money }}</td></tr>
+          {% else %}
+          <tr><td class="muted">None</td><td class="num">—</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot><tr><td>Total deductions</td><td class="num">{{ s.total_deductions|money }}</td></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <table class="data" style="margin-top:1rem">
+    <tr class="grand"><td>Net pay</td><td class="num">{{ s.net_pay|money }}</td></tr>
+  </table>
+
+  <div style="display:flex; gap:1.5rem; margin-top:1rem; flex-wrap:wrap">
+    <div style="flex:1; min-width:260px">
+      <div class="lbl" style="font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-soft); font-weight:650">
+        How your PAYE was worked out</div>
+      <table class="data" style="font-size:12px">
+        <tr><td>Annualised taxable pay</td><td class="num">{{ s.annual_gross|money }}</td></tr>
+        <tr><td>Less reliefs for the year</td><td class="num">({{ s.annual_reliefs|money }})</td></tr>
+        {% if s.rent_relief %}<tr><td class="indent muted">of which rent relief</td>
+          <td class="num muted">{{ s.rent_relief|money }}</td></tr>{% endif %}
+        <tr><td>Chargeable income</td><td class="num">{{ s.annual_chargeable|money }}</td></tr>
+        <tr><td>Tax for the year</td><td class="num">{{ s.annual_paye|money }}</td></tr>
+        <tr class="total"><td>This period</td><td class="num">{{ s.paye|money }}</td></tr>
+        {% if s.paye_note %}<tr><td colspan="2" class="muted small">{{ s.paye_note }}</td></tr>{% endif %}
+      </table>
+    </div>
+    <div style="flex:1; min-width:260px">
+      <div class="lbl" style="font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-soft); font-weight:650">
+        Paid by your employer on your behalf</div>
+      <table class="data" style="font-size:12px">
+        {% if s.pension_employer %}<tr><td>Pension (employer share)</td><td class="num">{{ s.pension_employer|money }}</td></tr>{% endif %}
+        {% if s.nhis_employer %}<tr><td>NHIS (employer share)</td><td class="num">{{ s.nhis_employer|money }}</td></tr>{% endif %}
+        {% if s.nsitf %}<tr><td>NSITF employee compensation</td><td class="num">{{ s.nsitf|money }}</td></tr>{% endif %}
+        {% if s.itf %}<tr><td>Industrial Training Fund</td><td class="num">{{ s.itf|money }}</td></tr>{% endif %}
+        <tr class="total"><td>Total cost of your employment</td><td class="num">{{ s.employer_cost|money }}</td></tr>
+      </table>
+      {% if s.units and s.units != '1' %}
+      <p class="muted small" style="margin-top:.5rem">Paid for {{ s.units }} units this period.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="doc-foot">
+    <p>{{ settings.payslip_note }}</p>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

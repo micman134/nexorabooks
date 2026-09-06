@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Record a receipt{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Record a customer receipt</h1></div>
+
+<form method="get" class="filters no-print">
+  <div class="field" style="flex:1"><label>Customer</label>
+    <select name="contact" onchange="this.form.submit()">
+      <option value="">— choose a customer to see their open invoices —</option>
+      {% for c in customers %}
+      <option value="{{ c.id }}" {{ 'selected' if contact_id == c.id }}>{{ c.name }}</option>
+      {% endfor %}
+    </select></div>
+  <noscript><button class="btn" type="submit">Load invoices</button></noscript>
+</form>
+
+<form method="post" action="/receipts/save">
+  <input type="hidden" name="contact_id" value="{{ contact_id or '' }}">
+
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field"><label for="d">Date received</label>
+          <input id="d" type="date" name="date" value="{{ today.isoformat() }}" required></div>
+        <div class="field"><label for="b">Paid into</label>
+          <select id="b" name="bank_account_id" required>
+            {% for b in banks %}
+            <option value="{{ b.id }}" {{ 'selected' if b.is_default }}>{{ b.name }}</option>
+            {% endfor %}
+          </select></div>
+        <div class="field"><label for="m">Method</label>
+          <select id="m" name="method">
+            <option>Bank transfer</option><option>Cash</option><option>POS / card</option>
+            <option>Cheque</option><option>USSD</option><option>Mobile money</option><option>Other</option>
+          </select></div>
+        <div class="field"><label for="r">Reference</label>
+          <input id="r" name="reference" placeholder="Teller or transaction number"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="a">Cash received *</label>
+          <input id="a" class="num" name="amount" placeholder="0.00" required></div>
+        <div class="field"><label for="w">WHT credit note received</label>
+          <input id="w" class="num" name="wht_amount" placeholder="0.00">
+          <div class="hint">The tax the customer withheld and remitted on your behalf.</div></div>
+        <div class="field"><label for="vw">VAT withheld at source</label>
+          <input id="vw" class="num" name="vat_withheld" placeholder="0.00">
+          <div class="hint">Government and oil-and-gas customers keep the VAT back and pay
+            it to the NRS themselves.</div></div>
+        <div class="field"><label for="disc">Settlement discount allowed</label>
+          <input id="disc" class="num" name="discount_amount" placeholder="0.00"></div>
+        <div class="field"><label for="bc">Bank charge deducted</label>
+          <input id="bc" class="num" name="bank_charge" placeholder="0.00"></div>
+      </div>
+      <div class="field"><label for="memo">Note</label><input id="memo" name="memo"></div>
+    </div>
+  </div>
+
+  {% if contact_id %}
+  <div class="card">
+    <div class="card-head"><h2>Apply to invoices</h2>
+      <div class="actions"><button class="btn btn-sm" type="button" id="fill">Fill oldest first</button></div></div>
+    <div class="card-body">
+      {% if open_invoices %}
+      <p class="hint">Leave every box empty and the receipt is applied automatically to the oldest invoices first.</p>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Invoice</th><th>Date</th><th>Due</th><th class="num">Total</th>
+            <th class="num">Outstanding</th><th class="num" style="width:160px">Apply</th></tr></thead>
+          <tbody>
+            {% for i in open_invoices %}
+            <tr>
+              <td><a href="/sales/invoices/{{ i.id }}" target="_blank">{{ i.number }}</a>
+                <input type="hidden" name="alloc_invoice_id" value="{{ i.id }}"></td>
+              <td class="nowrap">{{ i.date|dt }}</td>
+              <td class="nowrap {{ 'neg' if i.due_date and i.due_date < today }}">{{ i.due_date|dt if i.due_date }}</td>
+              <td class="num">{{ i.total|money }}</td>
+              <td class="num strong out" data-out="{{ i.balance_due|naira }}"
+                  {% if i.id == invoice_id %}data-preselect="1"{% endif %}>{{ i.balance_due|money }}</td>
+              <td><input class="num alloc" name="alloc_amount" placeholder="0.00"
+                    value="{{ i.balance_due|naira if i.id == invoice_id else '' }}"></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty">This customer has no outstanding invoices. The receipt will be held as a credit on their account.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit" {{ 'disabled' if not contact_id }}>Record the receipt</button>
+    <a class="btn" href="/receipts">Cancel</a>
+  </div>
+  {% if not contact_id %}<p class="hint">Choose a customer above first.</p>{% endif %}
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var fill = document.getElementById('fill');
+  if (!fill) return;
+  fill.addEventListener('click', function () {
+    var cash = parseFloat((document.getElementById('a').value || '0').replace(/,/g, '')) || 0;
+    var wht = parseFloat((document.getElementById('w').value || '0').replace(/,/g, '')) || 0;
+    var disc = parseFloat((document.getElementById('disc').value || '0').replace(/,/g, '')) || 0;
+    var left = cash + wht + disc;
+    document.querySelectorAll('tbody tr').forEach(function (row) {
+      var out = parseFloat(row.querySelector('.out').getAttribute('data-out')) || 0;
+      var box = row.querySelector('.alloc');
+      var apply = Math.min(out, left);
+      box.value = apply > 0 ? apply.toFixed(2) : '';
+      left -= apply;
+    });
+  });
+});
+</script>
+{% endblock %}

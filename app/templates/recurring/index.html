@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Recurring{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Recurring invoices and bills</h1>
+    <div class="muted small">Rent, retainers, subscriptions — set them up once and they come round on their own.</div>
+  </div>
+  <div class="actions">
+    {% if can(user, 'entry') %}
+    <a class="btn btn-primary" href="/recurring/new?kind=INVOICE">New recurring invoice</a>
+    <a class="btn" href="/recurring/new?kind=BILL">New recurring bill</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat {{ 'accent' if owed_count else '' }}"><div class="label">Waiting to be raised</div>
+    <div class="value">{{ owed_count }}</div>
+    <div class="sub">{{ owed_value|money }} before VAT</div></div>
+  <div class="stat"><div class="label">Running</div><div class="value">{{ active }}</div></div>
+  <div class="stat"><div class="label">Set up in total</div><div class="value">{{ templates|length }}</div></div>
+</div>
+
+{% if owed %}
+<div class="alert alert-info no-print">
+  <b>{{ owed_count }} document{{ 's are' if owed_count != 1 else ' is' }} due.</b>
+  Nothing is raised until you say so.
+  <ul style="margin:.4rem 0 .6rem 1.1rem">
+    {% for d in owed %}
+    <li><a href="/recurring/{{ d.template.id }}">{{ d.template.name }}</a> —
+      {{ d.count }} × {{ d.template.doc_type|lower }}
+      {% if d.count > 1 %}<span class="muted">({{ d.dates[0]|dt }} to {{ d.dates[-1]|dt }})</span>
+      {% else %}<span class="muted">dated {{ d.dates[0]|dt }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% if can(user, 'entry') %}
+  <form method="post" action="/recurring/run-all"
+        onsubmit="return confirm('Raise all {{ owed_count }} documents now?')">
+    <button class="btn btn-primary" type="submit">Raise all {{ owed_count }} now</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Name</th><th>Who</th><th>What</th><th>How often</th>
+        <th>Next due</th><th class="num">Value</th><th>Done</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for t in templates %}
+        <tr>
+          <td><a href="/recurring/{{ t.id }}">{{ t.name }}</a>
+            {% if t.auto_post %}<span class="badge badge-open">posts itself</span>{% endif %}</td>
+          <td class="small">{{ t.contact.name if t.contact else '—' }}</td>
+          <td class="small">{{ 'Invoice' if t.is_sales else 'Bill' }}</td>
+          <td class="small">{{ t.frequency_label }}</td>
+          <td class="small">
+            {% if t.status == 'FINISHED' %}<span class="muted">—</span>
+            {% else %}{{ t.next_date|dt }}
+              {% if t.status == 'ACTIVE' and t.next_date <= today() %}
+              <span class="badge badge-part">due</span>{% endif %}
+            {% endif %}
+          </td>
+          <td class="num">{{ t.estimated_total|money }}</td>
+          <td class="small muted">{{ t.occurrences }}{% if t.max_occurrences %} of {{ t.max_occurrences }}{% endif %}</td>
+          <td><span class="badge {{ 'badge-paid' if t.status == 'ACTIVE' else ('badge-void' if t.status == 'FINISHED' else 'badge-draft') }}">
+            {{ t.status|lower }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty">
+          Nothing set up yet.
+          {% if can(user, 'entry') %}
+          <a href="/recurring/new?kind=INVOICE">Set up the first one</a> — monthly rent is the usual place to start.
+          {% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="muted small">
+  A recurring document is a template, not an entry: nothing reaches the books until it is raised.
+  Miss a few months and nothing is lost — the next run raises one for every date that was owed.
+</p>
+{% endblock %}

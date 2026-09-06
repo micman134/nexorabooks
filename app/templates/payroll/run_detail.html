@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, void_button %}
+{% block title %}{{ run.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Payroll {{ run.number }} {{ status_badge(run.status) }}</h1>
+    <div class="muted small">{{ P.FREQUENCY_LABELS.get(run.frequency, run.frequency) }} ·
+      {{ run.period_start|dt }} to {{ run.period_end|dt }} · pay date {{ run.pay_date|dt }} ·
+      {{ run.employee_count }} employee(s)</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/payroll/runs/{{ run.id }}/payslips" target="_blank">Payslips</a>
+    <a class="btn" href="/payroll/runs/{{ run.id }}/bank-schedule" target="_blank">Bank schedule</a>
+    {% if run.status == 'DRAFT' %}
+      {% if can(user, 'journal') %}
+      <form method="post" action="/payroll/runs/{{ run.id }}/post" style="display:inline">
+        <button class="btn btn-primary" type="submit">Post to the ledger</button></form>
+      {% endif %}
+      {% if can(user, 'entry') %}
+      <form method="post" action="/payroll/runs/{{ run.id }}/delete" style="display:inline"
+            onsubmit="return confirm('Delete this draft run? Nothing has been posted, so nothing in the ledger changes.')">
+        <button class="btn btn-danger" type="submit">Delete draft</button></form>
+      {% endif %}
+    {% endif %}
+    {% if run.status == 'POSTED' and can(user, 'journal') %}
+      <button class="btn btn-primary" type="button" onclick="document.getElementById('pay-box').scrollIntoView({behavior:'smooth'})">Pay the staff</button>
+    {% endif %}
+    {% if run.status not in ('DRAFT','VOID') and can(user, 'void') %}
+      {{ void_button('/payroll/runs/' ~ run.id ~ '/void', 'Void this run') }}
+    {% endif %}
+  </div>
+</div>
+
+{% if run.status == 'DRAFT' %}
+<div class="alert alert-info">This is a draft. Nothing has been posted to the ledger yet, and no
+  liability to the tax office or the PFAs has been created.</div>
+{% elif run.status == 'VOID' %}
+<div class="alert alert-warning">This run has been voided and reversed in the ledger. Loan balances
+  have been restored.</div>
+{% endif %}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Gross pay</div><div class="value">{{ run.gross_total|money }}</div></div>
+  <div class="stat"><div class="label">Total deductions</div>
+    <div class="value">{{ (run.gross_total - run.net_total)|money }}</div>
+    <div class="sub">PAYE {{ run.paye_total|money }}</div></div>
+  <div class="stat"><div class="label">Net to pay staff</div><div class="value">{{ run.net_total|money }}</div></div>
+  <div class="stat"><div class="label">Total cost to you</div><div class="value">{{ run.employer_cost_total|money }}</div>
+    <div class="sub">Including employer contributions</div></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Payslips</h2>
+    {% if run.status == 'DRAFT' and can(user, 'entry') %}
+    <div class="actions"><button class="btn btn-sm" form="units-form" type="submit">Recalculate</button></div>
+    {% endif %}
+  </div>
+  <form id="units-form" method="post" action="/payroll/runs/{{ run.id }}/units">
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr>
+          <th>Employee</th>
+          {% if run.status == 'DRAFT' %}<th style="width:110px" class="num">Days/hours</th>{% endif %}
+          <th class="num">Gross</th><th class="num">Pension</th><th class="num">NHF</th>
+          <th class="num">PAYE</th><th class="num">Other</th><th class="num">Net pay</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          {% for s in run.payslips %}
+          <tr>
+            <td>
+              <a href="/payroll/employees/{{ s.employee_id }}">{{ s.employee_name }}</a>
+              <div class="muted small">{{ s.staff_no }}{% if s.job_title %} · {{ s.job_title }}{% endif %}</div>
+              {% if s.paye_note %}<div class="muted small">{{ s.paye_note }}</div>{% endif %}
+            </td>
+            {% if run.status == 'DRAFT' %}
+            <td>
+              <input type="hidden" name="payslip_id" value="{{ s.id }}">
+              <input class="num" name="units" value="{{ s.units }}">
+            </td>
+            {% endif %}
+            <td class="num">{{ s.gross|money }}</td>
+            <td class="num">{{ s.pension_employee|money if s.pension_employee else '—' }}</td>
+            <td class="num">{{ s.nhf|money if s.nhf else '—' }}</td>
+            <td class="num">{{ s.paye|money if s.paye else '—' }}</td>
+            <td class="num">{{ (s.other_deductions + s.loan_repayment)|money if (s.other_deductions or s.loan_repayment) else '—' }}</td>
+            <td class="num strong">{{ s.net_pay|money }}</td>
+            <td class="right nowrap">
+              <a class="btn btn-sm" href="/payroll/payslips/{{ s.id }}" target="_blank">Payslip</a>
+              {% if run.status == 'DRAFT' and can(user, 'entry') %}
+              <button class="btn btn-sm btn-danger" type="submit" formaction="/payroll/runs/{{ run.id }}/remove/{{ s.id }}"
+                      formnovalidate title="Take this person off the run">&times;</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>Totals</td>
+            {% if run.status == 'DRAFT' %}<td></td>{% endif %}
+            <td class="num">{{ run.gross_total|money }}</td>
+            <td class="num">{{ run.pension_employee_total|money }}</td>
+            <td class="num">{{ run.nhf_total|money }}</td>
+            <td class="num">{{ run.paye_total|money }}</td>
+            <td class="num">{{ (run.other_deductions_total + run.loan_total)|money }}</td>
+            <td class="num">{{ run.net_total|money }}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </form>
+</div>
+
+<div class="grid grid-2">
+  <div>
+  <div class="card">
+    <div class="card-head"><h3>What this run creates</h3></div>
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          <tr class="section"><td colspan="2">Owed to staff</td></tr>
+          <tr><td class="indent">Net pay</td><td class="num">{{ run.net_total|money }}</td></tr>
+          <tr class="section"><td colspan="2">Owed to the authorities</td></tr>
+          <tr><td class="indent">PAYE — due by the 10th of next month</td><td class="num">{{ run.paye_total|money }}</td></tr>
+          <tr><td class="indent">Pension — due within 7 working days of payday</td>
+            <td class="num">{{ (run.pension_employee_total + run.pension_employer_total)|money }}</td></tr>
+          {% if run.nhf_total %}<tr><td class="indent">NHF</td><td class="num">{{ run.nhf_total|money }}</td></tr>{% endif %}
+          {% if run.nsitf_total %}<tr><td class="indent">NSITF</td><td class="num">{{ run.nsitf_total|money }}</td></tr>{% endif %}
+          {% if run.itf_total %}<tr><td class="indent">ITF</td><td class="num">{{ run.itf_total|money }}</td></tr>{% endif %}
+          {% if run.nhis_employee_total or run.nhis_employer_total %}
+          <tr><td class="indent">NHIS</td><td class="num">{{ (run.nhis_employee_total + run.nhis_employer_total)|money }}</td></tr>{% endif %}
+          {% if run.loan_total %}
+          <tr class="section"><td colspan="2">Recovered</td></tr>
+          <tr><td class="indent">Staff loans repaid</td><td class="num">{{ run.loan_total|money }}</td></tr>{% endif %}
+          <tr class="grand"><td>Total cost of this payroll</td><td class="num">{{ run.employer_cost_total|money }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  </div>
+
+  <div>
+    {% if run.status == 'POSTED' and can(user, 'journal') %}
+    <div class="card" id="pay-box">
+      <div class="card-head"><h3>Pay the staff</h3></div>
+      <form class="card-body" method="post" action="/payroll/runs/{{ run.id }}/pay">
+        <p class="muted small">This settles the {{ run.net_total|money }} owed to staff and takes it
+          out of the account you choose. Transfer the money to each person using the bank schedule.</p>
+        <div class="field-row">
+          <div class="field"><label for="pd">Date paid</label>
+            <input id="pd" type="date" name="pay_date" value="{{ run.pay_date.isoformat() }}"></div>
+          <div class="field"><label for="bk">Paid from</label>
+            <select id="bk" name="bank_account_id" required>
+              {% for b in banks %}<option value="{{ b.id }}" {{ 'selected' if b.is_default }}>{{ b.name }}</option>{% endfor %}
+            </select></div>
+        </div>
+        <button class="btn btn-primary" type="submit">Record the payment of {{ run.net_total|money }}</button>
+      </form>
+    </div>
+    {% elif run.status == 'PAID' %}
+    <div class="card">
+      <div class="card-head"><h3>Paid</h3></div>
+      <div class="card-body">
+        <p>{{ run.net_total|money }} was paid out of
+          <strong>{{ run.paid_from.name if run.paid_from else 'the bank' }}</strong>.</p>
+        {% if payment %}<a class="btn btn-sm" href="/journals/{{ payment.id }}">Journal {{ payment.number }}</a>{% endif %}
+        <p class="hint" style="margin-top:.75rem">
+          Still to do: remit the PAYE, pension and other deductions.
+          <a href="/payroll/remittances">See what's due</a>.
+        </p>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if entry %}
+    <div class="card">
+      <div class="card-head"><h3>Ledger posting</h3>
+        <div class="actions"><a class="btn btn-sm" href="/journals/{{ entry.id }}">Journal {{ entry.number }}</a></div></div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Account</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+          <tbody>
+            {% for l in entry.lines %}
+            <tr><td class="small">{{ l.account.code }} — {{ l.account.name }}</td>
+              <td class="num">{{ l.debit|money if l.debit else '' }}</td>
+              <td class="num">{{ l.credit|money if l.credit else '' }}</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot><tr><td>Totals</td><td class="num">{{ entry.total_debit|money }}</td>
+            <td class="num">{{ entry.total_credit|money }}</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

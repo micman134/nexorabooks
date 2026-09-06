@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en" data-theme="{{ theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Choose your password · {{ APP_NAME }}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/themes.css">
+</head>
+<body>
+<div class="login-wrap">
+  {% if dead %}
+  <div class="login-card">
+    <h1>{{ company.name if company and company.setup_complete else APP_NAME }}</h1>
+    <p class="sub">This link is no longer any good</p>
+    <div class="alert alert-warning">
+      An invitation works once, and stops working a week after it was sent.
+      This one has been used, has expired, or was never right.
+    </div>
+    <p class="hint">
+      Ask whoever looks after the accounts to send you another one. If you have
+      already set your password, just
+      <a href="/login">sign in</a>.
+    </p>
+  </div>
+  {% else %}
+  <form class="login-card" method="post" action="/invite/{{ token }}">
+    <h1>{{ company.name if company and company.setup_complete else APP_NAME }}</h1>
+    <p class="sub">Welcome, {{ invited.full_name or invited.username }}</p>
+
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+    <p class="hint" style="margin-bottom:1rem">
+      Your username is <strong>{{ invited.username }}</strong>. Choose a
+      password and you are in. Nobody else sees what you type here — not even
+      the administrator who invited you.
+    </p>
+
+    <div class="field">
+      <label for="new_password">Choose a password</label>
+      <input id="new_password" name="new_password" type="password"
+             autocomplete="new-password" autofocus required>
+      <div class="hint">At least 8 characters, with a letter and a number.</div>
+    </div>
+    <div class="field">
+      <label for="confirm_password">Type it again</label>
+      <input id="confirm_password" name="confirm_password" type="password"
+             autocomplete="new-password" required>
+    </div>
+    <button class="btn btn-primary" style="width:100%; justify-content:center"
+            type="submit">Set my password and sign in</button>
+  </form>
+  {% endif %}
+</div>
+</body>
+</html>

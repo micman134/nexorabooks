@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}What if…{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>What if…</h1>
+    <div class="muted small">
+      Your real figures for {{ start|dt }} – {{ end|dt }}, run again with your changes.
+    </div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/cash/timeline">What is coming</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<div class="card no-print">
+  <div class="card-head"><h2>The usual questions</h2></div>
+  <div class="card-body">
+    {% for key, label, _a in presets %}
+    <a class="btn btn-sm {{ 'btn-primary' if chosen == key }}"
+       href="?preset={{ key }}&start={{ start }}&end={{ end }}">{{ label }}</a>
+    {% endfor %}
+    <a class="btn btn-sm" href="?start={{ start }}&end={{ end }}">Clear</a>
+  </div>
+</div>
+
+<form class="card no-print" method="get">
+  <div class="card-head"><h2>Or set your own</h2></div>
+  <div class="card-body">
+    <div class="filters">
+      <div class="field"><label for="price_change">Prices change by (%)</label>
+        <input id="price_change" name="price_change" value="{{ a.price_change }}"></div>
+      <div class="field"><label for="volume_change">Volume changes by (%)</label>
+        <input id="volume_change" name="volume_change" value="{{ a.volume_change }}"></div>
+      <div class="field"><label for="cost_change">Supplier prices change by (%)</label>
+        <input id="cost_change" name="cost_change" value="{{ a.cost_change }}"></div>
+      <div class="field"><label for="overhead_change">Overheads change by (%)</label>
+        <input id="overhead_change" name="overhead_change" value="{{ a.overhead_change }}"></div>
+      <div class="field"><label for="extra_fixed_cost">A new fixed cost</label>
+        <input id="extra_fixed_cost" name="extra_fixed_cost" value="{{ a.extra_fixed_cost|amount }}"></div>
+      <div class="field"><label for="collection_days">Paid this many days later</label>
+        <input id="collection_days" name="collection_days" value="{{ a.collection_days }}"></div>
+      <div class="field"><label for="start">From</label>
+        <input id="start" type="date" name="start" value="{{ start }}"></div>
+      <div class="field"><label for="end">To</label>
+        <input id="end" type="date" name="end" value="{{ end }}"></div>
+      <button class="btn btn-primary" type="submit">Work it out</button>
+    </div>
+  </div>
+</form>
+
+{% if not a.anything_changed %}
+<div class="alert alert-info">
+  Nothing has been changed yet, so both columns below are your real figures.
+  Pick one of the questions above, or type your own changes in.
+</div>
+{% endif %}
+
+{# ---- the two columns --------------------------------------------------- #}
+<div class="card">
+  <div class="card-head">
+    <h2>{{ 'What it would have looked like' if a.anything_changed else 'How it actually was' }}</h2>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th></th><th class="num">As it was</th><th class="num">With your changes</th>
+        <th class="num">Difference</th></tr></thead>
+      <tbody>
+        {# The last value in each row says which way is good news: a cost
+           falling helps you, so it must not be coloured as a loss. #}
+        {% for label, was, now, good in [
+            ('Revenue', result.base.revenue, result.changed.revenue, 1),
+            ('Cost of sales', result.base.cost_of_sales, result.changed.cost_of_sales, -1),
+            ('Gross profit', result.base.gross_profit, result.changed.gross_profit, 1),
+            ('Overheads', result.base.overheads, result.changed.overheads, -1)] %}
+        {% set diff = now - was %}
+        <tr class="{{ 'total' if label == 'Gross profit' }}">
+          <td>{{ label }}</td>
+          <td class="num muted">{{ was|money }}</td>
+          <td class="num">{{ now|money }}</td>
+          <td class="num {{ 'pos' if diff * good > 0 else ('neg' if diff * good < 0 else '') }}">
+            {{ diff|money }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="grand">
+          <td>Net profit</td>
+          <td class="num muted">{{ result.base.net_profit|money }}</td>
+          <td class="num">{{ result.changed.net_profit|money }}</td>
+          <td class="num {{ 'pos' if result.profit_change > 0 else ('neg' if result.profit_change < 0 else '') }}">
+            {{ result.profit_change|money }}</td>
+        </tr>
+        <tr>
+          <td>Gross margin</td>
+          <td class="num muted">{{ '%.1f'|format(result.base.gross_margin) }}%</td>
+          <td class="num">{{ '%.1f'|format(result.changed.gross_margin) }}%</td>
+          <td class="num small muted">
+            {{ '%+.1f'|format(result.changed.gross_margin - result.base.gross_margin) }} points</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% if a.anything_changed %}
+  <div class="card-body">
+    <p class="{{ 'pos' if result.better else 'neg' }}" style="font-size:1.05rem; font-weight:600">
+      {% if result.profit_change > 0 %}
+        That would leave you {{ result.profit_change|money }} better off over the same period.
+      {% elif result.profit_change < 0 %}
+        That would leave you {{ (-result.profit_change)|money }} worse off over the same period.
+      {% else %}
+        That would leave profit exactly where it is.
+      {% endif %}
+    </p>
+    {% for note in result.notes %}<p class="muted">{{ note }}</p>{% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>How to read this</h2></div>
+  <div class="card-body">
+    <p class="muted small">
+      The left column is what actually happened — the same figures as your profit and
+      loss for those dates. The right column is those figures with your changes applied,
+      nothing more. There is no model and no forecast: it is arithmetic you could do by
+      hand, done quickly.
+    </p>
+    <p class="muted small">
+      <strong>The link between price and volume is your assumption, not a finding.</strong>
+      The software does not know how many customers you would lose by charging more.
+      What it can tell you is the break-even — how much volume you could afford to lose
+      before the increase stopped being worth having — and that figure is arithmetic.
+    </p>
+  </div>
+</div>
+{% endblock %}

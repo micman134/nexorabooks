@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}{{ 'New recurring document' if is_new else rec.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ 'New recurring document' if is_new else 'Edit ' ~ rec.name }}</h1>
+</div>
+
+<form method="post" action="/recurring/save">
+  {% if not is_new %}<input type="hidden" name="id" value="{{ rec.id }}">{% endif %}
+
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field" style="flex:1.5"><label for="nm">What to call it *</label>
+          <input id="nm" name="name" value="{{ rec.name }}" required autofocus
+                 placeholder="e.g. Ikoyi office rent, Legal retainer"></div>
+        <div class="field"><label for="dt">Kind</label>
+          <select id="dt" name="doc_type">
+            {% for value, label in doc_choices %}
+            <option value="{{ value }}" {{ 'selected' if rec.doc_type == value }}>{{ label }}</option>
+            {% endfor %}
+          </select></div>
+        <div class="field" style="flex:1.5"><label for="ct">Customer or supplier *</label>
+          <select id="ct" name="contact_id" required>
+            <option value="">— choose —</option>
+            {% for c in contacts %}
+            <option value="{{ c.id }}" {{ 'selected' if rec.contact_id == c.id }}>{{ c.name }}</option>
+            {% endfor %}
+          </select></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>When it comes round</h2></div>
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field"><label for="fq">How often</label>
+          <select id="fq" name="frequency">
+            {% for value, label in frequencies %}
+            <option value="{{ value }}" {{ 'selected' if rec.frequency == value }}>{{ label }}</option>
+            {% endfor %}
+          </select></div>
+        <div class="field"><label for="sd">First one on *</label>
+          <input id="sd" type="date" name="start_date" required
+                 value="{{ (rec.start_date or today()).isoformat() }}"></div>
+        <div class="field"><label for="ad">Day of the month</label>
+          <input id="ad" class="num" name="anchor_day"
+                 value="{{ rec.anchor_day or (rec.start_date or today()).day }}">
+          <div class="hint">Set 31 and a short month lands on its last day, then it goes back to the 31st.</div></div>
+        <div class="field"><label for="tm">Payment terms (days)</label>
+          <input id="tm" class="num" name="payment_terms_days" value="{{ rec.payment_terms_days }}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="ed">Stop after this date</label>
+          <input id="ed" type="date" name="end_date"
+                 value="{{ rec.end_date.isoformat() if rec.end_date else '' }}">
+          <div class="hint">Leave empty to run until you stop it.</div></div>
+        <div class="field"><label for="mo">Or stop after this many</label>
+          <input id="mo" class="num" name="max_occurrences"
+                 value="{{ rec.max_occurrences or '' }}" placeholder="no limit">
+          {% if not is_new and rec.occurrences %}
+          <div class="hint">{{ rec.occurrences }} raised so far.</div>{% endif %}</div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <div class="check"><input type="checkbox" id="ap" name="auto_post" value="1"
+                                    {{ 'checked' if rec.auto_post }}>
+            <label for="ap">Post it to the ledger automatically</label></div>
+          <div class="hint">Leave this off and each one waits as a draft for you to check first.</div>
+          <div class="check"><input type="checkbox" id="ia" name="is_active" value="1"
+                                    {{ 'checked' if rec.status != 'PAUSED' }}>
+            <label for="ia">Running</label></div>
+        </div>
+      </div>
+      {% if not is_new and rec.status != 'FINISHED' %}
+      <div class="check"><input type="checkbox" id="rn" name="reset_next" value="1">
+        <label for="rn">Start again from the first date</label></div>
+      <div class="hint">Otherwise the next one stays on {{ rec.next_date|dt }}.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>What is on it</h2>
+      <div class="actions"><button class="btn btn-sm" id="add-row" type="button">Add a line</button></div>
+    </div>
+    <div class="card-body">
+      <div class="table-wrap">
+        <table class="lines">
+          <thead>
+            <tr>
+              <th style="width:16%">Item</th>
+              <th style="width:23%">Description</th>
+              <th style="width:7%" class="num">Qty</th>
+              <th style="width:12%" class="num">Unit price</th>
+              <th style="width:6%" class="num">Disc %</th>
+              <th style="width:16%">Account</th>
+              <th style="width:13%">VAT</th>
+              <th style="width:11%" class="num">Amount</th>
+              <th style="width:34px"></th>
+            </tr>
+          </thead>
+          <tbody id="line-body">
+            {% for line in rec.lines %}
+            <tr class="line-row">
+              <td>
+                <select class="l-item" name="line_item_id">
+                  <option value="">—</option>
+                  {% for it in items %}
+                  <option value="{{ it.id }}" {{ 'selected' if line.item_id == it.id }}
+                    data-name="{{ it.name }}" data-price="{{ it.sale_price|naira }}"
+                    data-tax="{{ it.sale_tax_code_id or '' }}"
+                    data-account="{{ it.sales_account_id or '' }}">{{ it.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input class="l-desc" name="line_description" value="{{ line.description }}"></td>
+              <td><input class="l-qty num" name="line_qty" value="{{ line.qty|qty if line.qty else '' }}"></td>
+              <td><input class="l-price num" name="line_price" value="{{ line.unit_price|naira if line.unit_price else '' }}"></td>
+              <td><input class="l-disc num" name="line_disc" value="{{ line.discount_pct or '0' }}"></td>
+              <td>
+                <select class="l-account" name="line_account">
+                  <option value="">Default</option>
+                  {% for a in accounts %}
+                  <option value="{{ a.id }}" {{ 'selected' if line.account_id == a.id }}>{{ a.code }} {{ a.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <select class="l-tax" name="line_tax">
+                  <option value="" data-rate="0">No VAT</option>
+                  {% for t in vat_codes %}
+                  <option value="{{ t.id }}" data-rate="{{ t.rate }}"
+                    {{ 'selected' if line.tax_code_id == t.id }}>{{ t.code }} ({{ t.rate }}%)</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td class="num l-total mono"></td>
+              <td class="rm"><button class="btn btn-sm rm-row" type="button" title="Remove this line">&times;</button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="totals" style="margin-top:1rem">
+        <table>
+          <tr><td>Subtotal</td><td id="t-subtotal">—</td></tr>
+          <tr id="discount-row" style="display:none"><td>Discount</td><td id="t-discount">—</td></tr>
+          <tr><td>VAT</td><td id="t-vat">—</td></tr>
+          <tr class="grand"><td>Each time</td><td id="t-total">—</td></tr>
+          <tr id="wht-row" style="display:none"><td class="muted">Less WHT</td><td id="t-wht" class="muted">—</td></tr>
+          <tr id="net-row" style="display:none"><td class="muted">Expected cash</td><td id="t-net" class="muted">—</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field"><label for="wht_code_id">Withholding tax</label>
+          <select id="wht_code_id" name="wht_code_id">
+            <option value="" data-rate="0">None</option>
+            {% for w in wht_codes %}
+            <option value="{{ w.id }}" data-rate="{{ w.rate }}"
+                    {{ 'selected' if rec.wht_code_id == w.id }}>{{ w.name }} — {{ w.rate }}%</option>
+            {% endfor %}
+          </select></div>
+        <div class="field"><label for="rf">Reference</label>
+          <input id="rf" name="reference" value="{{ rec.reference }}"
+                 placeholder="Goes on every one, e.g. a contract number"></div>
+        <div class="field"><label for="memo">Note on the document</label>
+          <textarea id="memo" name="memo">{{ rec.memo }}</textarea></div>
+        <div class="field"><label for="terms">Terms</label>
+          <textarea id="terms" name="terms">{{ rec.terms }}</textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn" href="{{ '/recurring' if is_new else '/recurring/' ~ rec.id }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/lines.js"></script>
+{% endblock %}

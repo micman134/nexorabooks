@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_macros.html" import void_button, attachments_panel %}
+{% block title %}{{ pay.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Receipt {{ pay.number }}
+      {% if pay.status == 'VOID' %}<span class="badge badge-void">void</span>{% endif %}</h1>
+    <div class="muted small">{{ pay.contact.name }} · {{ pay.date|dt }} · into {{ pay.bank_account.name }}</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/receipts/{{ pay.id }}/print" target="_blank">Print receipt</a>
+    {% if pay.status != 'VOID' and can(user, 'void') %}{{ void_button('/receipts/' ~ pay.id ~ '/void') }}{% endif %}
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Cash received</div><div class="value">{{ pay.amount|money }}</div>
+    <div class="sub">{{ pay.method }}{{ ' · ' ~ pay.reference if pay.reference }}</div></div>
+  {% if pay.wht_amount %}<div class="stat"><div class="label">WHT credit</div><div class="value">{{ pay.wht_amount|money }}</div></div>{% endif %}
+  {% if pay.discount_amount %}<div class="stat"><div class="label">Discount allowed</div><div class="value">{{ pay.discount_amount|money }}</div></div>{% endif %}
+  {% if pay.unallocated %}<div class="stat warn"><div class="label">Not yet applied</div><div class="value">{{ pay.unallocated|money }}</div>
+    <div class="sub">Held as a credit on the account</div></div>{% endif %}
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>Applied to</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Invoice</th><th>Date</th><th class="num">Cash</th><th class="num">WHT</th>
+        <th class="num">Discount</th><th class="num">Total applied</th></tr></thead>
+      <tbody>
+        {% for a in pay.allocations %}
+        <tr>
+          <td><a href="/sales/invoices/{{ a.invoice.id }}">{{ a.invoice.number }}</a></td>
+          <td>{{ a.invoice.date|dt }}</td>
+          <td class="num">{{ a.amount|money }}</td>
+          <td class="num">{{ a.wht_amount|money }}</td>
+          <td class="num">{{ a.discount|money }}</td>
+          <td class="num strong">{{ (a.amount + a.wht_amount + a.discount)|money }}</td>
+        </tr>
+        {% else %}<tr><td colspan="6" class="empty">Held on account — not applied to any invoice.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if entry %}
+<div class="card">
+  <div class="card-head"><h3>Ledger posting</h3>
+    <div class="actions"><a class="btn btn-sm" href="/journals/{{ entry.id }}">Journal {{ entry.number }}</a></div></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Account</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+      <tbody>
+        {% for l in entry.lines %}
+        <tr><td>{{ l.account.code }} — {{ l.account.name }}</td><td class="small">{{ l.memo }}</td>
+          <td class="num">{{ l.debit|money if l.debit else '' }}</td>
+          <td class="num">{{ l.credit|money if l.credit else '' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{{ attachments_panel(user, 'RECEIPT', pay.id, files) }}
+
+{% endblock %}

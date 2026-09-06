@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}File a document{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>File a document</h1>
+    <div class="muted small">Upload the scan or the photo, and say enough about it that
+      somebody could find it in three years.</div>
+  </div>
+  <div class="actions"><a class="btn" href="/archive">Back to the archive</a></div>
+</div>
+
+<form method="post" action="/archive/new" enctype="multipart/form-data">
+  <div class="card" style="max-width:760px">
+    <div class="card-body">
+      <div class="field">
+        <label for="file">The scan or photo *</label>
+        <input id="file" type="file" name="file" required
+               accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.tif,.tiff,.csv,.txt">
+        <div class="hint">A PDF or a photograph from your phone. Up to 10 MB.</div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:2">
+          <label for="kind">What is it? *</label>
+          <select id="kind" name="kind" required>
+            {% for code, label in kinds %}
+            <option value="{{ code }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="doc_date">Date on the document</label>
+          <input id="doc_date" type="date" name="doc_date" value="{{ today }}">
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:2">
+          <label for="party">Who was it with? *</label>
+          <input id="party" name="party" required
+                 placeholder="The customer or supplier named on it">
+        </div>
+        <div class="field">
+          <label for="reference">Their reference</label>
+          <input id="reference" name="reference" placeholder="Invoice or receipt number">
+        </div>
+        <div class="field">
+          <label for="amount">Amount</label>
+          <input id="amount" name="amount" inputmode="decimal" placeholder="0.00">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="note">What it was for</label>
+        <textarea id="note" name="note" rows="2"
+                  placeholder="Training course, materials, the March retainer…"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="max-width:760px; margin-top:1.25rem">
+    <div class="card-head"><h2>Is this still owed to you?</h2></div>
+    <div class="card-body">
+      <div class="check">
+        <input type="checkbox" id="into_books" name="into_books" value="1">
+        <label for="into_books">Yes — also enter it in my books as money owed</label>
+      </div>
+      <p class="hint">
+        Leave this unticked to file the paperwork and nothing more. That is right for
+        anything already settled: entering a paid invoice now would count income twice
+        and change accounts you have already reported.
+      </p>
+      <p class="hint">
+        Tick it only for an invoice a customer has <strong>not yet paid</strong>. It
+        becomes a real posted invoice in your name, dated as the document is, showing
+        in your debtors and on your reports. The customer is created if you have not
+        used them before. It needs an amount.
+      </p>
+      <p class="hint">
+        Receipts, bills and statements can only be filed. A receipt is money that has
+        already moved, and a supplier's bill belongs in Purchases where it can be
+        matched to a payment properly.
+      </p>
+    </div>
+  </div>
+
+  <div style="margin-top:1.25rem">
+    <button class="btn btn-primary" type="submit">File it</button>
+    <a class="btn" href="/archive">Cancel</a>
+  </div>
+</form>
+
+<script>
+// The tick box only means anything for an invoice; for everything else it is
+// switched off and explained, rather than silently ignored on save.
+(function () {
+  var kind = document.getElementById('kind');
+  var box = document.getElementById('into_books');
+  var allowed = {{ can_post|tojson }};
+  function sync() {
+    var ok = allowed.indexOf(kind.value) !== -1;
+    box.disabled = !ok;
+    if (!ok) { box.checked = false; }
+    box.closest('.card').style.opacity = ok ? '1' : '.55';
+  }
+  kind.addEventListener('change', sync);
+  sync();
+})();
+</script>
+{% endblock %}

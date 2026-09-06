@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Group settings{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Group settings</h1>
+    <div class="muted small">Which companies are read together, and how</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/group">Back to the group accounts</a>
+  </div>
+</div>
+
+<div class="alert alert-info">
+  Nothing on this page changes any company's books. It decides how they are
+  <em>read</em> together — and it can be changed as often as you like without
+  consequence.
+</div>
+
+<form method="post" action="/group/settings">
+  <div class="card">
+    <div class="card-head"><h2>The group</h2></div>
+    <div class="card-body">
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="name">What the group is called</label>
+          <input id="name" name="name" value="{{ group.name }}"
+                 placeholder="e.g. Adeyemi Group" maxlength="120">
+        </div>
+        <div class="field">
+          <label for="currency">Report the group in</label>
+          <select id="currency" name="currency">
+            <option value="">Use the first company's currency</option>
+            {% for c in currencies %}
+            <option value="{{ c.code }}" {{ 'selected' if c.code == group.currency }}>{{ c.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1.5rem">
+    <div class="card-head">
+      <h2>The companies</h2>
+      <button class="btn btn-primary btn-sm" type="submit">Save</button>
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>In the group</th>
+            <th>Company</th>
+            <th class="num">Rate for the period</th>
+            <th class="num">Rate at the date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in group.members %}
+          <tr>
+            <td><input type="checkbox" name="include:{{ m.slug }}" {{ 'checked' if m.include }}></td>
+            <td>
+              {{ m.name }}
+              {% if not m.exists %}<span class="badge danger">its file is missing</span>{% endif %}
+            </td>
+            <td class="num"><input class="num" name="average:{{ m.slug }}" value="{{ m.average_rate }}" size="10"></td>
+            <td class="num"><input class="num" name="closing:{{ m.slug }}" value="{{ m.closing_rate }}" size="10"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body">
+      <p class="muted small">
+        Leave both rates at 1 for any company that already keeps its books in
+        the group's currency. For one that does not, put in how many units of
+        the group's currency one of its units is worth: the average across the
+        period for income and costs, and the rate on the closing date for what
+        it owns and owes. Those two are rarely the same, and the difference
+        between them appears in the group's equity as a translation difference
+        rather than being hidden in another figure.
+      </p>
+    </div>
+  </div>
+</form>
+
+<div class="card" style="margin-top:1.5rem" id="internal">
+  <div class="card-head">
+    <h2>Companies that trade with each other</h2>
+    <form method="post" action="/group/settings/suggest">
+      <button class="btn btn-sm" type="submit">Match them by name</button>
+    </form>
+  </div>
+  <div class="card-body">
+    <p>If one company in the group sells to another, that sale is not the
+      group's income — the group cannot make a profit out of itself. To take it
+      out, say which customer or supplier in each company <em>is</em> another
+      company in the group.</p>
+    <p class="muted small">Get this wrong and real trade with a real customer
+      disappears from the group's revenue, so the matching is only ever
+      suggested. Nothing is applied until you save it below.</p>
+  </div>
+
+  <form method="post" action="/group/settings/internal">
+    {% for m in group.members %}
+    {% if m.include and m.exists %}
+    <div class="card-body" style="border-top:1px solid var(--line)">
+      <h3 style="margin-top:0">{{ m.name }}</h3>
+      {% set rows = contacts.get(m.slug, []) %}
+      {% if not rows %}
+      <p class="muted">No customers or suppliers in this company yet.</p>
+      {% else %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Customer or supplier</th><th>Is this another company in the group?</th></tr></thead>
+          <tbody>
+            {% for contact_id, contact_name in rows %}
+            {% set chosen = m.internal.get(contact_id|string, '') %}
+            <tr {{ 'class=highlight' if chosen }}>
+              <td>{{ contact_name }}</td>
+              <td>
+                <select name="internal:{{ m.slug }}:{{ contact_id }}">
+                  <option value="">No — an outside customer or supplier</option>
+                  {% for other in group.members %}
+                  {% if other.include and other.exists and other.slug != m.slug %}
+                  <option value="{{ other.slug }}" {{ 'selected' if chosen == other.slug }}>
+                    Yes — this is {{ other.name }}</option>
+                  {% endif %}
+                  {% endfor %}
+                </select>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+    <div class="card-body" style="border-top:1px solid var(--line)">
+      <button class="btn btn-primary" type="submit">Save which contacts are group companies</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

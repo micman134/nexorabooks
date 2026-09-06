@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Transfer{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Transfer between accounts</h1></div>
+
+<form method="post" action="/banking/transfer" style="max-width:600px">
+  <div class="card">
+    <div class="card-body">
+      <div class="field"><label for="d">Date</label>
+        <input id="d" type="date" name="date" value="{{ today.isoformat() }}" required></div>
+      <div class="field-row">
+        <div class="field"><label for="f">From</label>
+          <select id="f" name="from_id" required>
+            {% for b in banks %}<option value="{{ b.id }}">{{ b.name }} — {{ balances.get(b.id, 0)|money }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="t">To</label>
+          <select id="t" name="to_id" required>
+            {% for b in banks %}<option value="{{ b.id }}" {{ 'selected' if loop.index == 2 }}>{{ b.name }} — {{ balances.get(b.id, 0)|money }}</option>{% endfor %}
+          </select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="a">Amount *</label><input id="a" class="num" name="amount" placeholder="0.00" required></div>
+        <div class="field"><label for="ch">Transfer charge</label><input id="ch" class="num" name="charge" placeholder="0.00">
+          <div class="hint">Posted to bank charges, deducted from the sending account.</div></div>
+      </div>
+      <div class="field"><label for="r">Reference</label><input id="r" name="reference"></div>
+      <div class="field"><label for="m">Note</label><input id="m" name="memo"></div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Post the transfer</button>
+    <a class="btn" href="/banking">Cancel</a>
+  </div>
+</form>
+{% endblock %}

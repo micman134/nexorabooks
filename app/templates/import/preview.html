@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Check before importing{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ sheet.title }} — what this would do</h1>
+  <div class="actions"><a class="btn" href="/import/{{ sheet.key }}">Choose another file</a></div>
+</div>
+
+<p class="small muted">Read from <strong>{{ filename }}</strong>. Nothing has been saved yet.</p>
+
+{% if preview.missing_columns %}
+<div class="alert alert-danger">
+  <strong>This file is missing a column that is needed:</strong>
+  {{ preview.missing_columns|join(', ') }}.
+  <br>Add it to the spreadsheet and upload again, or
+  <a href="/import/{{ sheet.key }}/template">start from the blank template</a>.
+</div>
+{% else %}
+
+<div class="grid grid-3">
+  <div class="card"><div class="card-body">
+    <div class="muted small">Will be added</div>
+    <div style="font-size:1.6rem; font-weight:600">{{ preview.creating }}</div>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <div class="muted small">Already here, will be updated</div>
+    <div style="font-size:1.6rem; font-weight:600">{{ preview.updating }}</div>
+  </div></div>
+  <div class="card"><div class="card-body">
+    <div class="muted small">Cannot be brought in</div>
+    <div style="font-size:1.6rem; font-weight:600" class="{{ 'text-danger' if preview.bad }}">{{ preview.bad|length }}</div>
+  </div></div>
+</div>
+
+{% if preview.unknown_columns %}
+<div class="alert alert-warning" style="margin-top:1rem">
+  These columns were not recognised and will be ignored:
+  <strong>{{ preview.unknown_columns|join(', ') }}</strong>.
+  If one of them matters, rename it to one of the headings on the
+  <a href="/import/{{ sheet.key }}">previous page</a> and upload again.
+</div>
+{% endif %}
+
+{% if preview.bad %}
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head"><h2>Lines that cannot be brought in</h2></div>
+  <div class="card-body">
+    <p class="small">
+      These are skipped. The rest can still go in — fix these in the spreadsheet and
+      upload it again afterwards, or fix them and re-upload the whole file, which is
+      safe because anything already here is updated rather than duplicated.
+    </p>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th style="width:5rem">Line</th><th>What is wrong</th><th>The row</th></tr></thead>
+        <tbody>
+          {% for r in preview.bad[:60] %}
+          <tr>
+            <td>{{ r.number }}</td>
+            <td class="small">{{ r.errors|join('; ') }}</td>
+            <td class="muted small">{{ r.raw[:6]|join(' · ') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if preview.bad|length > 60 %}
+    <p class="muted small">…and {{ preview.bad|length - 60 }} more.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head"><h2>What will go in</h2></div>
+  <div class="card-body">
+    {% if preview.good %}
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th style="width:5rem">Line</th>
+            <th style="width:7rem"></th>
+            {% for c in preview.matched_columns %}<th>{{ c.heading }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in preview.good[:120] %}
+          <tr>
+            <td class="muted">{{ r.number }}</td>
+            <td>
+              {% if r.action == 'CREATE' %}<span class="badge badge-paid">new</span>
+              {% elif r.action == 'UPDATE' %}<span class="badge badge-open">update</span>
+              {% else %}<span class="badge badge-draft">skip</span>{% endif %}
+            </td>
+            {% for c in preview.matched_columns %}
+            <td class="{{ 'num' if c.kind in ('MONEY','QTY','WHOLE') }}" style="white-space:nowrap">
+              {% set v = r.values.get(c.key) %}
+              {% if v is none %}<span class="muted">—</span>
+              {% elif c.kind == 'MONEY' %}{{ v|money }}
+              {% elif c.kind == 'QTY' %}{{ v|qty }}
+              {% elif c.kind == 'DATE' %}{{ v|dt }}
+              {% elif c.kind == 'ACCOUNT' %}{{ v }}
+              {% else %}{{ v }}{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% if r.note %}
+          <tr><td></td><td colspan="{{ preview.matched_columns|length + 1 }}" class="muted small">{{ r.note }}</td></tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if preview.good|length > 120 %}
+    <p class="muted small">Showing the first 120 of {{ preview.good|length }}. All of them will be brought in.</p>
+    {% endif %}
+    {% else %}
+    <div class="alert alert-warning">Nothing in that file can be brought in.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if preview.can_apply %}
+<form method="post" action="/import/{{ sheet.key }}/apply" style="margin-top:1.5rem">
+  <input type="hidden" name="token" value="{{ token }}">
+  {% if sheet.key == 'trial_balance' %}<input type="hidden" name="date" value="{{ on }}">{% endif %}
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">
+      Bring in {{ preview.good|length }} {{ 'line' if preview.good|length == 1 else 'lines' }}
+    </button>
+    <a class="btn" href="/import/{{ sheet.key }}">Cancel</a>
+  </div>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}

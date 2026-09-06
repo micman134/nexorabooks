@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period_filter %}
+{% block title %}{{ project.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ project.code }} — {{ project.name }}</h1>
+    <div class="muted small">
+      {% if project.contact %}{{ project.contact.name }} · {% endif %}
+      {{ project.status|lower }}
+      {% if project.due_on %} · due {{ project.due_on|dt }}{% endif %}
+      {% if project.manager %} · run by {{ project.manager.display_name }}{% endif %}
+    </div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="/projects">All projects</a>
+    <button class="btn" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+{{ period_filter(preset, start, end) }}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Billed</div>
+    <div class="value pos">{{ s.figures.revenue|money }}</div>
+    {% if project.contract_value %}<div class="sub">of {{ project.contract_value|money }} agreed</div>{% endif %}</div>
+  <div class="stat {{ 'danger' if s.over_budget }}"><div class="label">Cost</div>
+    <div class="value neg">{{ s.figures.cost|money }}</div>
+    {% if project.budget_cost %}<div class="sub">against {{ project.budget_cost|money }} budgeted</div>{% endif %}</div>
+  <div class="stat {{ 'danger' if s.losing_money }}"><div class="label">Profit so far</div>
+    <div class="value {{ 'neg' if s.losing_money }}">{{ s.figures.profit|money }}</div>
+    <div class="sub">{{ '%.1f'|format(s.figures.margin) }}% margin</div></div>
+  <div class="stat"><div class="label">Still to bill</div>
+    <div class="value">{{ s.unbilled|money if project.contract_value else '—' }}</div>
+    {% if project.contract_value %}<div class="sub">if it bills in full</div>{% endif %}</div>
+</div>
+
+{% if s.concerns %}
+<div class="card">
+  <div class="card-head"><h2>What to look at</h2></div>
+  <ul class="points">
+    {% for c in s.concerns %}
+    <li class="point-urgent"><span class="point-mark" aria-hidden="true"></span>
+      <div class="point-body"><strong>{{ c }}</strong></div></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head">
+    <h2>Everything coded to this job</h2>
+    <span class="muted small">{{ rows|length }} lines. These add up to the figures above.</span>
+  </div>
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Date</th><th>Entry</th><th>Account</th><th>What</th>
+        <th class="num">Income</th><th class="num">Cost</th><th class="no-print"></th></tr></thead>
+      <tbody>
+        {% for line, entry, account in rows %}
+        {% set income = account.type == 'INCOME' %}
+        {% set value = (line.credit - line.debit) if income else (line.debit - line.credit) %}
+        <tr>
+          <td class="nowrap">{{ entry.date|dt }}</td>
+          <td class="mono small">{{ entry.number }}</td>
+          <td class="small">{{ account.name }}</td>
+          <td class="small">{{ line.memo }}</td>
+          <td class="num pos">{{ value|money if income else '' }}</td>
+          <td class="num neg">{{ value|money if not income else '' }}</td>
+          <td class="right no-print"><a class="btn btn-sm" href="/journals/{{ entry.id }}">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="4">Totals</td>
+          <td class="num">{{ s.figures.revenue|money }}</td>
+          <td class="num">{{ s.figures.cost|money }}</td><td></td></tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <p>Nothing has been coded to this job in this period.</p>
+    <p class="muted">Every invoice and bill line has a project box — choose this job
+      there and it appears here.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% if can(user, 'entry') %}
+<div class="card no-print">
+  <div class="card-head"><h2>Details</h2></div>
+  <form method="post" action="/projects/save">
+    <input type="hidden" name="id" value="{{ project.id }}">
+    <div class="card-body">
+      <div class="filters">
+        <div class="field"><label for="name">Name</label>
+          <input id="name" name="name" value="{{ project.name }}" required></div>
+        <div class="field"><label for="contact_id">Customer</label>
+          <select id="contact_id" name="contact_id"><option value="">— none —</option>
+            {% for c in contacts %}<option value="{{ c.id }}" {{ 'selected' if c.id == project.contact_id }}>{{ c.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="manager_id">Run by</label>
+          <select id="manager_id" name="manager_id"><option value="">— nobody —</option>
+            {% for u in users %}<option value="{{ u.id }}" {{ 'selected' if u.id == project.manager_id }}>{{ u.display_name }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="contract_value">What it is worth</label>
+          <input id="contract_value" name="contract_value" value="{{ project.contract_value|amount }}"></div>
+        <div class="field"><label for="budget_cost">What it should cost</label>
+          <input id="budget_cost" name="budget_cost" value="{{ project.budget_cost|amount }}"></div>
+        <div class="field"><label for="started_on">Started</label>
+          <input id="started_on" type="date" name="started_on" value="{{ project.started_on or '' }}"></div>
+        <div class="field"><label for="due_on">Due to finish</label>
+          <input id="due_on" type="date" name="due_on" value="{{ project.due_on or '' }}"></div>
+        <div class="field"><label for="finished_on">Finished</label>
+          <input id="finished_on" type="date" name="finished_on" value="{{ project.finished_on or '' }}"></div>
+        <div class="field"><label for="status">Status</label>
+          <select id="status" name="status">
+            {% for key, label in statuses %}<option value="{{ key }}" {{ 'selected' if key == project.status }}>{{ label }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="field"><label for="notes">Notes</label>
+        <textarea id="notes" name="notes" rows="2">{{ project.notes }}</textarea></div>
+      <button class="btn btn-primary" type="submit">Save</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

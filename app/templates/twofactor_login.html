@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en" data-theme="{{ theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Enter your code · {{ APP_NAME }}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/themes.css">
+</head>
+<body>
+<div class="login-wrap">
+  <form class="login-card" method="post" action="/login/code">
+    <h1>One more step</h1>
+    <p class="sub">Signing in as {{ username }}</p>
+
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+    <div class="field">
+      <label for="code">The six digits from your authenticator app</label>
+      <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code"
+             pattern="[0-9 ]*" maxlength="20" autofocus required
+             class="code-input" placeholder="000000">
+    </div>
+
+    <button class="btn btn-primary" style="width:100%; justify-content:center" type="submit">
+      Sign in
+    </button>
+
+    <details style="margin-top:1.2rem">
+      <summary>I don't have my phone</summary>
+      <p class="hint">
+        Type one of the recovery codes you saved when you set this up, instead of the
+        six digits. Each one works once.
+      </p>
+      <p class="hint">
+        If you have lost those too, an administrator can clear two-factor sign-in for
+        your account from Settings &rsaquo; Users.
+      </p>
+      <p class="hint">
+        And if <em>you</em> are the only administrator, so there is nobody left to ask:
+        close {{ APP_NAME }} on the computer it runs on and double-click
+        <strong>Reset-TwoFactor</strong> in the folder you installed it into. It asks
+        which person, turns the second step off for them, and writes what it did to the
+        audit trail. Nobody is ever shut out of their own books.
+      </p>
+    </details>
+
+    <p class="hint" style="text-align:center; margin-top:1rem">
+      <a href="/login">Start again</a>
+    </p>
+  </form>
+</div>
+</body>
+</html>

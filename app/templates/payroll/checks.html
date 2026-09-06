@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Check the payroll scheme{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Check the payroll scheme</h1>
+  <div class="actions">
+    <a class="btn" href="/payroll/settings">Back to the scheme</a>
+  </div>
+</div>
+
+<div class="alert {{ 'alert-info' if verified else 'alert-warning' }}">
+  Take one salary whose answer you already know — last month's payslip, or your tax
+  office's worked example — type the pay in, and type in the gross, tax and net it
+  should produce. If this scheme reproduces them, the rates are right. If it does not,
+  you have found that out here rather than on somebody's payslip.
+  <br><br>
+  Every check below is re-run whenever you change a rate, so a scheme that was right in
+  March cannot quietly stop being right in April.
+</div>
+
+{% for o in outcomes %}
+<div class="card" style="margin-bottom:1.25rem">
+  <div class="card-head">
+    <h2>{{ o.check.name or 'Untitled check' }}</h2>
+    <div>
+      {% if not o.tested %}
+      <span class="badge badge-draft">Not checked yet</span>
+      {% elif o.passed %}
+      <span class="badge badge-paid">Matches</span>
+      {% else %}
+      <span class="badge badge-void">Does not match</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card-body">
+    {% if o.check.note %}<p class="muted small">{{ o.check.note }}</p>{% endif %}
+
+    {% if o.tested %}
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Figure</th><th class="num">You said</th><th class="num">This scheme makes it</th><th class="num">Out by</th><th></th></tr></thead>
+        <tbody>
+          {% for c in o.comparisons %}
+          <tr>
+            <td>{{ c.label }}</td>
+            <td class="num">{{ c.expected|money }}</td>
+            <td class="num">{{ c.actual|money }}</td>
+            <td class="num">{{ c.difference|money if c.difference else '—' }}</td>
+            <td>{% if c.ok(o.check.tolerance) %}<span class="badge badge-paid">ok</span>
+                {% else %}<span class="badge badge-void">out</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+      No expected figures yet, so this proves nothing. Below is only what the scheme
+      produces — fill in what it <em>should</em> produce and it becomes a real check.
+    </div>
+    {% endif %}
+
+    <details style="margin:1rem 0">
+      <summary class="small">Show the working</summary>
+      <div class="table-wrap" style="margin-top:.75rem">
+        <table class="data">
+          <tbody>
+            <tr><td>Gross pay</td><td class="num">{{ o.result.gross|money }}</td></tr>
+            {% for c in o.result.contributions %}
+            {% if c.employee %}<tr><td>{{ c.name }} — employee</td><td class="num">{{ c.employee|money }}</td></tr>{% endif %}
+            {% endfor %}
+            <tr><td>Annual chargeable income</td><td class="num">{{ o.result.annual_chargeable|money }}</td></tr>
+            {% for b in o.result.bands %}
+            <tr><td class="muted small">{{ b.label }} at {{ b.rate }}% on {{ b.amount|money }}</td>
+                <td class="num muted small">{{ b.tax|money }}</td></tr>
+            {% endfor %}
+            <tr><td>{{ rules.tax_name }} for the year</td><td class="num">{{ o.result.annual_paye|money }}</td></tr>
+            <tr><td><strong>{{ rules.tax_name }} this period</strong></td><td class="num"><strong>{{ o.result.paye|money }}</strong></td></tr>
+            {% if o.result.paye_exempt_reason %}
+            <tr><td colspan="2" class="muted small">{{ o.result.paye_exempt_reason }}</td></tr>
+            {% endif %}
+            <tr><td><strong>Net pay</strong></td><td class="num"><strong>{{ o.result.net_pay|money }}</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <form method="post" action="/payroll/checks/save">
+      <input type="hidden" name="id" value="{{ o.check.id }}">
+      {% include "payroll/_check_fields.html" %}
+      <div class="btn-row">
+        <button class="btn btn-primary" type="submit">Save and check</button>
+        <button class="btn btn-danger btn-sm" type="submit"
+                formaction="/payroll/checks/{{ o.check.id }}/delete"
+                onclick="return confirm('Remove this check?')">Remove</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endfor %}
+
+<div class="card">
+  <div class="card-head"><h2>Add a salary you already know the answer to</h2></div>
+  <div class="card-body">
+    <form method="post" action="/payroll/checks/save">
+      {% include "payroll/_check_fields.html" %}
+      <div class="btn-row">
+        <button class="btn btn-primary" type="submit">Add and check</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if outcomes %}
+<form method="post" action="/payroll/checks/run" style="margin-top:1rem">
+  <button class="btn" type="submit">Re-run every check</button>
+</form>
+{% endif %}
+{% endblock %}

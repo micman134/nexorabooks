@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% from "_macros.html" import attachments_panel %}
+{% block title %}{{ employee.full_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ employee.full_name }}</h1>
+    <div class="muted small">{{ employee.staff_no }}
+      {% if employee.job_title %} · {{ employee.job_title }}{% endif %}
+      {% if employee.department %} · {{ employee.department }}{% endif %}
+      · <span class="badge {{ 'badge-paid' if employee.status == 'ACTIVE' else ('badge-void' if employee.status == 'LEFT' else 'badge-part') }}">{{ employee.status.replace('_',' ')|lower }}</span>
+    </div>
+  </div>
+  <div class="actions">
+    {% if can(user, 'entry') %}<a class="btn" href="/payroll/employees/{{ employee.id }}/edit">Edit</a>{% endif %}
+    <a class="btn" href="/payroll/employees">All employees</a>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Gross per {{ employee.frequency|lower }} period</div>
+    <div class="value">{{ preview.gross|money }}</div>
+    <div class="sub">Costs you {{ preview.employer_cost|money }}</div></div>
+  <div class="stat"><div class="label">Take-home</div><div class="value">{{ preview.net_pay|money }}</div>
+    <div class="sub">After {{ preview.total_deductions|money }} of deductions</div></div>
+  <div class="stat"><div class="label">PAYE per period</div><div class="value">{{ preview.paye|money }}</div>
+    <div class="sub">{{ preview.paye_note or (preview.annual_paye|money ~ ' a year') }}</div></div>
+  <div class="stat"><div class="label">Gross so far this year</div><div class="value">{{ ytd.gross|money }}</div>
+    <div class="sub">PAYE {{ ytd.paye|money }} · pension {{ ytd.pension|money }}</div></div>
+</div>
+
+<div class="grid grid-2">
+  <div>
+  <div class="card">
+    <div class="card-head"><h2>What the next payslip would look like</h2></div>
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          <tr class="section"><td colspan="2">Earnings</td></tr>
+          {% for e in preview.earnings %}
+          <tr><td class="indent">{{ e.name }}{% if not e.taxable %} <span class="muted small">(tax free)</span>{% endif %}</td>
+            <td class="num">{{ e.amount|money }}</td></tr>
+          {% endfor %}
+          <tr class="total"><td>Gross pay</td><td class="num">{{ preview.gross|money }}</td></tr>
+
+          <tr class="section"><td colspan="2">Deductions</td></tr>
+          {% if preview.pension_employee %}
+          <tr><td class="indent">Pension (employee share)</td><td class="num">{{ preview.pension_employee|money }}</td></tr>{% endif %}
+          {% if preview.nhf %}<tr><td class="indent">NHF</td><td class="num">{{ preview.nhf|money }}</td></tr>{% endif %}
+          {% if preview.nhis_employee %}<tr><td class="indent">NHIS</td><td class="num">{{ preview.nhis_employee|money }}</td></tr>{% endif %}
+          <tr><td class="indent">PAYE</td><td class="num">{{ preview.paye|money }}</td></tr>
+          {% for d in preview.other_deductions %}
+          <tr><td class="indent">{{ d.name }}</td><td class="num">{{ d.amount|money }}</td></tr>{% endfor %}
+          {% if preview.loan_repayment %}
+          <tr><td class="indent">Loan repayment</td><td class="num">{{ preview.loan_repayment|money }}</td></tr>{% endif %}
+          <tr class="total"><td>Total deductions</td><td class="num">{{ preview.total_deductions|money }}</td></tr>
+
+          <tr class="grand"><td>Net pay</td><td class="num">{{ preview.net_pay|money }}</td></tr>
+
+          <tr class="section"><td colspan="2">What it costs you on top</td></tr>
+          {% if preview.pension_employer %}
+          <tr><td class="indent">Employer pension</td><td class="num">{{ preview.pension_employer|money }}</td></tr>{% endif %}
+          {% if preview.nhis_employer %}<tr><td class="indent">Employer NHIS</td><td class="num">{{ preview.nhis_employer|money }}</td></tr>{% endif %}
+          {% if preview.nsitf %}<tr><td class="indent">NSITF</td><td class="num">{{ preview.nsitf|money }}</td></tr>{% endif %}
+          {% if preview.itf %}<tr><td class="indent">ITF</td><td class="num">{{ preview.itf|money }}</td></tr>{% endif %}
+          <tr class="total"><td>Total cost of employment</td><td class="num">{{ preview.employer_cost|money }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>How the PAYE is worked out</h2></div>
+      <div class="table-wrap">
+        <table class="data">
+          <tbody>
+            <tr><td>Annual taxable pay</td><td class="num">{{ preview.annual_gross|money }}</td></tr>
+            <tr><td class="indent muted">less pension, NHF and NHIS for the year</td>
+              <td class="num muted">({{ (preview.annual_reliefs - preview.rent_relief)|money }})</td></tr>
+            <tr><td class="indent muted">less rent relief</td>
+              <td class="num muted">({{ preview.rent_relief|money }})</td></tr>
+            <tr class="total"><td>Annual chargeable income</td><td class="num">{{ preview.annual_chargeable|money }}</td></tr>
+            {% if preview.paye_note %}
+            <tr><td colspan="2" class="muted small">{{ preview.paye_note }}</td></tr>
+            {% else %}
+            {% for b in preview.bands %}
+            <tr><td class="indent small">{{ b.label }} at {{ b.rate }}% on {{ b.amount|money }}</td>
+              <td class="num">{{ b.tax|money }}</td></tr>
+            {% endfor %}
+            {% endif %}
+            <tr class="total"><td>PAYE for the year</td><td class="num">{{ preview.annual_paye|money }}</td></tr>
+            <tr class="grand"><td>PAYE this period</td><td class="num">{{ preview.paye|money }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Details</h3></div>
+      <div class="card-body">
+        <table class="data">
+          <tr><th>Paid</th><td>{{ employee.frequency|lower|title }}{% if employee.pay_basis != 'FIXED' %},
+            {{ 'daily rate' if employee.pay_basis == 'DAILY_RATE' else 'hourly rate' }},
+            usually {{ employee.default_units }} per period{% endif %}</td></tr>
+          <tr><th>Bank</th><td>{{ employee.bank_name or '—' }} {{ employee.bank_account_no }}</td></tr>
+          <tr><th>Tax ID</th><td class="mono">{{ employee.tin or 'Not on record' }}</td></tr>
+          <tr><th>PAYE state</th><td>{{ employee.state_of_residence or '—' }}</td></tr>
+          <tr><th>PFA</th><td>{{ employee.pfa_name or '—' }} {{ employee.pension_pin }}</td></tr>
+          <tr><th>NHF number</th><td>{{ employee.nhf_number or '—' }}</td></tr>
+          <tr><th>Started</th><td>{{ employee.hire_date|dt if employee.hire_date else '—' }}</td></tr>
+          {% if employee.leave_date %}<tr><th>Left</th><td>{{ employee.leave_date|dt }}</td></tr>{% endif %}
+          <tr><th>Annual rent</th><td>{{ employee.annual_rent_paid|money if employee.annual_rent_paid else 'None recorded' }}</td></tr>
+        </table>
+        {% if employee.notes %}<p class="hint" style="margin-top:.75rem">{{ employee.notes }}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Loans and advances</h3></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Date</th><th>What for</th><th class="num">Advanced</th>
+          <th class="num">Per payslip</th><th class="num">Still owed</th><th></th></tr></thead>
+        <tbody>
+          {% for l in employee.loans %}
+          <tr>
+            <td class="nowrap">{{ l.date|dt }}</td>
+            <td>{{ l.description }}{% if not l.is_active %} <span class="badge badge-paid">settled</span>{% endif %}</td>
+            <td class="num">{{ l.principal|money }}</td>
+            <td class="num">{{ l.repayment|money }}</td>
+            <td class="num strong">{{ l.balance|money }}</td>
+            <td class="right">
+              {% if l.is_active and l.balance > 0 and can(user, 'journal') %}
+              <form method="post" action="/payroll/employees/{{ employee.id }}/loan/{{ l.id }}/write-off"
+                    onsubmit="return confirm('Stop recovering this loan from payslips? The balance stays on record.')">
+                <button class="btn btn-sm" type="submit">Stop recovery</button></form>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}<tr><td colspan="6" class="empty">No loans or advances.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if can(user, 'journal') %}
+    <form class="card-body" method="post" action="/payroll/employees/{{ employee.id }}/loan">
+      <h4>Advance money to {{ employee.first_name }}</h4>
+      <div class="field-row">
+        <div class="field"><label for="ld">Date</label>
+          <input id="ld" type="date" name="date" value="{{ today.isoformat() }}"></div>
+        <div class="field"><label for="la">Amount</label>
+          <input id="la" class="num" name="amount" placeholder="0.00"></div>
+        <div class="field"><label for="lr">Recover each payslip</label>
+          <input id="lr" class="num" name="repayment" placeholder="0.00"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="ldesc">What for</label>
+          <input id="ldesc" name="description" placeholder="Salary advance, school fees loan…"></div>
+        <div class="field"><label for="lb">Paid from</label>
+          <select id="lb" name="bank_account_id">
+            <option value="">Not paid yet — just record it</option>
+            {% for b in banks %}<option value="{{ b.id }}" {{ 'selected' if b.is_default }}>{{ b.name }}</option>{% endfor %}
+          </select></div>
+      </div>
+      <button class="btn" type="submit">Record the advance</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Payslip history</h3></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Period</th><th>Run</th><th class="num">Gross</th>
+          <th class="num">PAYE</th><th class="num">Net</th><th></th></tr></thead>
+        <tbody>
+          {% for s in slips %}
+          <tr>
+            <td class="nowrap">{{ s.run.period_end|dt('%b %Y') }}</td>
+            <td><a href="/payroll/runs/{{ s.run_id }}">{{ s.run.number }}</a></td>
+            <td class="num">{{ s.gross|money }}</td>
+            <td class="num">{{ s.paye|money }}</td>
+            <td class="num strong">{{ s.net_pay|money }}</td>
+            <td class="right"><a class="btn btn-sm" href="/payroll/payslips/{{ s.id }}" target="_blank">Payslip</a></td>
+          </tr>
+          {% else %}<tr><td colspan="6" class="empty">No payslips yet.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{{ attachments_panel(user, 'EMPLOYEE', employee.id, files) }}
+
+{% endblock %}

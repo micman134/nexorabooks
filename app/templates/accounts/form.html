@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ 'New account' if is_new else account.name }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>{{ 'New account' if is_new else 'Edit ' ~ account.code ~ ' — ' ~ account.name }}</h1></div>
+
+<form method="post" action="/accounts/save" style="max-width:640px">
+  {% if not is_new %}<input type="hidden" name="id" value="{{ account.id }}">{% endif %}
+  <div class="card">
+    <div class="card-body">
+      {% if account.is_system %}
+      <div class="alert alert-info">
+        This is a system account — {{ APP_NAME }} posts to it automatically, so its type cannot be changed.
+        You can still rename it or renumber it.
+      </div>
+      {% endif %}
+      <div class="field-row">
+        <div class="field"><label for="c">Code *</label><input id="c" name="code" value="{{ account.code }}" required autofocus></div>
+        <div class="field" style="flex:2"><label for="n">Name *</label><input id="n" name="name" value="{{ account.name }}" required></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="t">Type</label>
+          <select id="t" name="type" {{ 'disabled' if account.is_system }} onchange="fillSub()">
+            {% for t in types %}<option value="{{ t }}" {{ 'selected' if account.type == t }}>{{ t|title }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="s">Category</label>
+          <select id="s" name="subtype" {{ 'disabled' if account.is_system }}></select></div>
+        <div class="field"><label for="cf">Cash flow section</label>
+          <select id="cf" name="cashflow_class">
+            {% for c in ['OPERATING','INVESTING','FINANCING'] %}
+            <option value="{{ c }}" {{ 'selected' if account.cashflow_class == c }}>{{ c|title }}</option>{% endfor %}
+          </select></div>
+      </div>
+      <div class="field"><label for="d">Description</label><textarea id="d" name="description">{{ account.description }}</textarea></div>
+      <div class="check"><input type="checkbox" id="ia" name="is_active" value="1" {{ 'checked' if account.is_active or is_new }}>
+        <label for="ia">Active</label></div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn" href="/accounts">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var SUBTYPES = {{ subtypes|tojson }};
+var CURRENT = {{ (account.subtype or '')|tojson }};
+function fillSub() {
+  var t = document.getElementById('t').value;
+  var s = document.getElementById('s');
+  s.innerHTML = '';
+  (SUBTYPES[t] || []).forEach(function (pair) {
+    var o = document.createElement('option');
+    o.value = pair[0]; o.textContent = pair[1];
+    if (pair[0] === CURRENT) o.selected = true;
+    s.appendChild(o);
+  });
+}
+document.addEventListener('DOMContentLoaded', fillSub);
+</script>
+{% endblock %}

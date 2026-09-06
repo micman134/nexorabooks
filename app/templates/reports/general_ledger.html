@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}General ledger{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>General ledger</h1>
+    <div class="muted small">{{ account.code }} — {{ account.name }} · {{ start|dt }} to {{ end|dt }}</div>
+  </div>
+  <div class="actions no-print">
+    <a class="btn" href="?account={{ account.id }}&start={{ start }}&end={{ end }}&format=csv">Export CSV</a>
+    <button class="btn btn-primary" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<form class="filters no-print" method="get">
+  <div class="field" style="flex:1"><label>Account</label>
+    <select name="account" onchange="this.form.submit()">
+      {% for a in accounts %}
+      <option value="{{ a.id }}" {{ 'selected' if a.id == account.id }}>{{ a.code }} — {{ a.name }}</option>
+      {% endfor %}
+    </select></div>
+  <div class="field"><label>From</label><input type="date" name="start" value="{{ start }}"></div>
+  <div class="field"><label>To</label><input type="date" name="end" value="{{ end }}"></div>
+  <button class="btn" type="submit">Apply</button>
+</form>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Opening balance</div><div class="value">{{ opening|money }}</div></div>
+  <div class="stat"><div class="label">Movement</div><div class="value">{{ (closing - opening)|money }}</div>
+    <div class="sub">{{ rows|length }} entries</div></div>
+  <div class="stat accent"><div class="label">Closing balance</div><div class="value">{{ closing|money }}</div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Date</th><th>Journal</th><th>Narration</th><th>Party</th><th>Source</th>
+        <th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead>
+      <tbody>
+        <tr><td colspan="7"><em>Opening balance</em></td><td class="num strong">{{ opening|money }}</td></tr>
+        {% for r in rows %}
+        <tr>
+          <td class="nowrap">{{ r.entry.date|dt }}</td>
+          <td><a href="/journals/{{ r.entry.id }}">{{ r.entry.number }}</a></td>
+          <td>{{ r.line.memo or r.entry.memo }}</td>
+          <td class="small">{{ r.line.contact.name if r.line.contact else '' }}</td>
+          <td class="small">{{ r.entry.source|title }}</td>
+          <td class="num">{{ r.line.debit|money if r.line.debit else '' }}</td>
+          <td class="num">{{ r.line.credit|money if r.line.credit else '' }}</td>
+          <td class="num">{{ r.running|money }}</td>
+        </tr>
+        {% else %}<tr><td colspan="8" class="empty">No movements on this account in the period.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr class="grand"><td colspan="7">Closing balance</td><td class="num">{{ closing|money }}</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Budgets{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Budgets</h1>
+    <div class="muted small">Set a plan for the year, then see how the business is doing against it.</div>
+  </div>
+  {% if budgets %}
+  <div class="actions"><a class="btn btn-primary" href="/budgets/variance">Budget vs actual</a></div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Name</th><th>Covers</th><th class="num">Lines</th>
+        <th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for b in budgets %}
+        <tr>
+          <td><a href="/budgets/variance?budget={{ b.id }}">{{ b.name }}</a>
+            {% if b.notes %}<div class="muted small">{{ b.notes|truncate(90) }}</div>{% endif %}</td>
+          <td class="small">{{ b.start_date|dt }} — {{ b.end_date|dt }}</td>
+          <td class="num">{{ b.lines|length }}</td>
+          <td><span class="badge {{ 'badge-paid' if b.is_active else 'badge-draft' }}">
+            {{ 'in use' if b.is_active else 'archived' }}</span></td>
+          <td class="right">
+            <a class="btn btn-sm" href="/budgets/variance?budget={{ b.id }}">Compare</a>
+            {% if can(user, 'journal') %}
+            <a class="btn btn-sm" href="/budgets/{{ b.id }}/edit">Edit figures</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty">No budget set yet. Start one below.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if can(user, 'journal') %}
+<div class="card">
+  <div class="card-head"><h3>Start a budget</h3></div>
+  <form class="card-body" method="post" action="/budgets/create">
+    <div class="field-row">
+      <div class="field" style="flex:1.5"><label for="nm">Name *</label>
+        <input id="nm" name="name" required value="{{ suggested_name }}"></div>
+      <div class="field"><label for="sd">From</label>
+        <input id="sd" type="date" name="start_date" value="{{ fy_start.isoformat() }}"></div>
+      <div class="field"><label for="ed">To</label>
+        <input id="ed" type="date" name="end_date" value="{{ fy_end.isoformat() }}"></div>
+      <div class="field"><label for="up">Uplift on last year (%)</label>
+        <input id="up" class="num" name="uplift_pct" value="10"></div>
+    </div>
+    <div class="check"><input type="checkbox" id="fl" name="from_last_year" value="1" checked>
+      <label for="fl">Start from what actually happened last year</label></div>
+    <div class="hint" style="margin-bottom:.6rem">
+      Copies last year's income and costs month by month and adds the uplift. You can change
+      any figure afterwards — nothing here touches the ledger.
+    </div>
+    <button class="btn btn-primary" type="submit">Create the budget</button>
+  </form>
+</div>
+{% endif %}
+
+<p class="muted small">
+  A budget is only a plan. It never posts anything, and deleting one leaves the books untouched.
+</p>
+{% endblock %}

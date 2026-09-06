@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ 'New bank account' if is_new else bank.name }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>{{ 'Add a bank or cash account' if is_new else 'Edit ' ~ bank.name }}</h1></div>
+
+<form method="post" action="/banking/save" style="max-width:640px">
+  {% if not is_new %}<input type="hidden" name="id" value="{{ bank.id }}">{% endif %}
+  <div class="card">
+    <div class="card-body">
+      <div class="field"><label for="n">Name shown in the app *</label>
+        <input id="n" name="name" value="{{ bank.name }}" required autofocus placeholder="e.g. GTBank Current"></div>
+
+      {% if is_new %}
+      <div class="field"><label for="a">Ledger account *</label>
+        <select id="a" name="account_id" required>
+          <option value="">— choose an asset account —</option>
+          {% for a in accounts %}<option value="{{ a.id }}">{{ a.code }} — {{ a.name }}</option>{% endfor %}
+        </select>
+        <div class="hint">Every bank account needs its own account in the chart of accounts.
+          Create one under Chart of Accounts first if none of these fit.</div></div>
+      {% endif %}
+
+      <div class="field-row">
+        <div class="field"><label for="bn">Bank</label><input id="bn" name="bank_name" value="{{ bank.bank_name }}"></div>
+        <div class="field"><label for="an">Account number</label><input id="an" name="account_number" value="{{ bank.account_number }}"></div>
+        <div class="field"><label for="br">Branch</label><input id="br" name="branch" value="{{ bank.branch }}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="at">Type</label>
+          <select id="at" name="account_type">
+            {% for t in ['CURRENT','SAVINGS','DOMICILIARY','CASH','POS','MOBILE'] %}
+            <option value="{{ t }}" {{ 'selected' if bank.account_type == t }}>{{ t|title }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="cc">Currency</label><input id="cc" name="currency_code" value="{{ bank.currency_code or 'NGN' }}"></div>
+      </div>
+      <div class="check"><input type="checkbox" id="df" name="is_default" value="1" {{ 'checked' if bank.is_default }}>
+        <label for="df">Use as the default account for receipts and payments</label></div>
+      <div class="check"><input type="checkbox" id="ia" name="is_active" value="1" {{ 'checked' if bank.is_active or is_new }}>
+        <label for="ia">Active</label></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1.25rem">
+    <div class="card-head"><h2>Show this account on invoices</h2></div>
+    <div class="card-body">
+      <p class="muted small">
+        Tick this and these details are printed on every invoice you send, under
+        &ldquo;How to pay&rdquo;. Leave it off for an account customers should not be
+        paying into — a savings account, or your petty cash.
+      </p>
+      <div class="check">
+        <input type="checkbox" id="soi" name="show_on_invoices" value="1"
+               {{ 'checked' if bank.show_on_invoices }}>
+        <label for="soi">Print these details on invoices</label>
+      </div>
+
+      <div class="field" style="margin-top:.8rem">
+        <label for="acn">Account name</label>
+        <input id="acn" name="account_name" value="{{ bank.account_name }}"
+               placeholder="The name your bank holds on the account">
+        <div class="hint">Often not the same as the short name you use in the app.
+          This is the one your customer's bank will check.</div>
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label for="sc">Sort code</label>
+          <input id="sc" name="sort_code" value="{{ bank.sort_code }}"
+                 placeholder="if your country uses one"></div>
+        <div class="field"><label for="sw">SWIFT / BIC</label>
+          <input id="sw" name="swift" value="{{ bank.swift }}"
+                 placeholder="for payments from abroad"></div>
+      </div>
+      <div class="field"><label for="ib">IBAN</label>
+        <input id="ib" name="iban" value="{{ bank.iban }}"
+               placeholder="for payments from abroad"></div>
+      <p class="hint">Anything left empty is simply not printed. An invoice showing
+        &ldquo;IBAN: —&rdquo; tells a customer nothing.</p>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn" href="/banking">Cancel</a>
+  </div>
+</form>
+{% endblock %}

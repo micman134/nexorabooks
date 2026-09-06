@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% from "_macros.html" import attachments_panel, letterhead %}
+{% block title %}{{ req.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ req.number }}
+      <span class="badge {{ 'badge-paid' if req.status == 'RETIRED'
+              else ('badge-void' if req.status in ('REJECTED', 'CANCELLED')
+              else ('badge-part' if req.status == 'PAID'
+              else ('badge-draft' if req.status == 'DRAFT' else 'badge-open'))) }}">
+        {{ req.status_label|lower }}</span></h1>
+    <div class="muted small">Raised by {{ req.raised_by.display_name }}
+      {%- if req.department %} · {{ req.department }}{% endif %} · {{ req.date|dt }}
+      {%- if req.needed_by %} · needed by {{ req.needed_by|dt }}{% endif %}</div>
+  </div>
+  <div class="actions no-print">
+    {% if can_edit %}<a class="btn" href="/requisitions/{{ req.id }}/edit">Edit</a>{% endif %}
+    <button class="btn" onclick="window.print()">Print</button>
+    <a class="btn" href="/requisitions">All requisitions</a>
+  </div>
+</div>
+
+<div class="print-only">{{ letterhead(company) }}</div>
+
+{% if req.status == 'REJECTED' %}
+<div class="alert alert-danger">
+  <b>Sent back by {{ req.rejected_by.display_name if req.rejected_by }}</b>
+  on {{ req.rejected_at|dt }}.
+  <p style="margin:.4rem 0 0">“{{ req.rejection_reason }}”</p>
+  {% if can_edit %}
+  <p class="small" style="margin:.5rem 0 0">Change what they asked for, then send it again.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="stat accent"><div class="label">Requested</div>
+    <div class="value">{{ req.total|money }}</div>
+    {% if limit and req.total > limit %}
+    <div class="sub">Over the {{ limit|money }} limit — needs a director</div>{% endif %}</div>
+  {% if req.paid_amount %}
+  <div class="stat"><div class="label">Paid out</div>
+    <div class="value">{{ req.paid_amount|money }}</div>
+    <div class="sub">{{ req.paid_on|dt }}{% if req.payment_reference %} · {{ req.payment_reference }}{% endif %}</div></div>
+  {% endif %}
+  {% if req.status == 'RETIRED' %}
+  <div class="stat"><div class="label">Actually spent</div>
+    <div class="value">{{ req.amount_spent|money }}</div></div>
+  <div class="stat {{ 'accent' if req.balance_to_return >= 0 else 'warn' }}">
+    <div class="label">{{ 'Returned' if req.balance_to_return >= 0 else 'Reimbursed' }}</div>
+    <div class="value">{{ req.balance_to_return|abs|money }}</div></div>
+  {% elif req.status == 'PAID' %}
+  <div class="stat warn"><div class="label">To be retired</div>
+    <div class="value">{{ req.paid_amount|money }}</div>
+    <div class="sub">With receipts</div></div>
+  {% else %}
+  <div class="stat"><div class="label">Waiting on</div>
+    <div class="value" style="font-size:1.05rem">{{ req.awaiting or '—' }}</div></div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>{{ req.purpose }}</h3></div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Description</th><th>Charged to</th><th>Vendor</th>
+        <th class="num">Qty</th><th class="num">Each</th><th class="num">Amount</th>
+        {% if req.status == 'RETIRED' %}<th class="num">Spent</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for l in req.lines %}
+        <tr>
+          <td>{{ l.description }}</td>
+          <td class="small">{{ (l.account.code ~ ' — ' ~ l.account.name) if l.account else '—' }}</td>
+          <td class="small">{{ l.vendor.name if l.vendor else '—' }}</td>
+          <td class="num">{{ l.qty|qty }}</td>
+          <td class="num">{{ l.unit_price|money }}</td>
+          <td class="num">{{ l.amount|money }}</td>
+          {% if req.status == 'RETIRED' %}<td class="num">{{ l.spent|money }}</td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><th colspan="5">Total</th><th class="num">{{ req.total|money }}</th>
+        {% if req.status == 'RETIRED' %}<th class="num">{{ req.amount_spent|money }}</th>{% endif %}
+      </tr></tfoot>
+    </table>
+  </div>
+</div>
+
+{# ---------------------------------------------------------------- actions #}
+
+{% if req.status == 'DRAFT' and can_edit %}
+<div class="alert alert-info no-print">
+  <b>This is still a draft.</b> Nobody has seen it yet.
+  <div class="btn-row" style="margin-top:.6rem">
+    <form method="post" action="/requisitions/{{ req.id }}/submit">
+      <button class="btn btn-primary" type="submit">Send to
+        {{ req.manager.display_name if req.manager else 'my manager' }}</button>
+    </form>
+    <form method="post" action="/requisitions/{{ req.id }}/delete"
+          onsubmit="return confirm('Delete this draft? Nothing has been sent, so nothing is lost.')">
+      <button class="btn btn-danger" type="submit">Delete it</button>
+    </form>
+  </div>
+</div>
+{% elif req.status == 'REJECTED' and can_edit %}
+<div class="card no-print"><div class="card-body btn-row">
+  <form method="post" action="/requisitions/{{ req.id }}/submit">
+    <button class="btn btn-primary" type="submit">Send it again</button>
+  </form>
+  <a class="btn" href="/requisitions/{{ req.id }}/edit">Change it first</a>
+  <form method="post" action="/requisitions/{{ req.id }}/withdraw"
+        onsubmit="return confirm('Withdraw this requisition?')">
+    <button class="btn" type="submit">Withdraw it</button>
+  </form>
+</div></div>
+{% endif %}
+
+{% if can_manager or can_director %}
+<div class="card no-print">
+  <div class="card-head"><h3>
+    {{ 'Your approval as ' ~ req.raised_by.display_name ~ "'s manager"
+       if can_manager else "A director's approval" }}</h3></div>
+  <div class="card-body">
+    <p class="muted small">
+      {{ req.raised_by.display_name }} is asking for {{ req.total|money }}.
+      {% if can_manager and limit and req.total > limit %}
+      Approving sends it to a director next, because it is over {{ limit|money }}.
+      {% else %}Approving sends it to finance to pay.{% endif %}
+    </p>
+    <div class="grid grid-2">
+      <form method="post" action="/requisitions/{{ req.id }}/approve">
+        <div class="field"><label for="nt">Anything to add (optional)</label>
+          <input id="nt" name="note" placeholder="e.g. Get three quotes before spending it"></div>
+        <button class="btn btn-primary" type="submit">Approve {{ req.total|money }}</button>
+      </form>
+      <form method="post" action="/requisitions/{{ req.id }}/reject">
+        <div class="field"><label for="rs">Why are you sending it back? *</label>
+          <textarea id="rs" name="reason" rows="2" required
+                    placeholder="Tell them what to change — they see this word for word"></textarea></div>
+        <button class="btn btn-danger" type="submit">Send it back</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if can_pay %}
+<div class="card no-print">
+  <div class="card-head"><h3>Release the money</h3></div>
+  <div class="card-body">
+    {% if not req.raised_by.has_bank_details %}
+    <div class="alert alert-warning">
+      {{ req.raised_by.display_name }} has no bank account on their user record, so there
+      is nowhere to send this. An administrator can add it under Settings › Users.
+    </div>
+    {% else %}
+    <p class="muted small">
+      Paying sends {{ req.total|money }} to
+      <b>{{ req.raised_by.bank_account_name or req.raised_by.display_name }}</b>,
+      {{ req.raised_by.bank_name }} {{ req.raised_by.bank_account_no }}, and charges the
+      accounts on the lines above. {{ req.raised_by.display_name.split()[0] }} then has to
+      retire it with receipts.
+    </p>
+    {% endif %}
+    <div class="grid grid-2">
+      <form method="post" action="/requisitions/{{ req.id }}/pay">
+        <div class="field-row">
+          <div class="field"><label for="bk">Out of</label>
+            <select id="bk" name="bank_account_id">
+              {% for b in banks %}
+              <option value="{{ b.id }}" {{ 'selected' if b.is_default }}>{{ b.name }}</option>
+              {% endfor %}
+            </select></div>
+          <div class="field"><label for="pd">Date</label>
+            <input id="pd" type="date" name="date" value="{{ today().isoformat() }}"></div>
+          <div class="field"><label for="am">Amount</label>
+            <input id="am" class="num" name="amount" value="{{ req.total|amount }}">
+            <div class="hint">You can pay less than approved, never more.</div></div>
+          <div class="field"><label for="rf">Reference</label>
+            <input id="rf" name="reference" placeholder="Transfer or teller number"></div>
+        </div>
+        <button class="btn btn-primary" type="submit"
+                {{ 'disabled' if not req.raised_by.has_bank_details }}>Pay it</button>
+      </form>
+      <form method="post" action="/requisitions/{{ req.id }}/reject">
+        <div class="field"><label for="fr">Or send it back *</label>
+          <textarea id="fr" name="reason" rows="2" required
+                    placeholder="e.g. No vendor invoice attached"></textarea></div>
+        <button class="btn btn-danger" type="submit">Send it back</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if can_retire %}
+<div class="card no-print">
+  <div class="card-head"><h3>Retire it</h3></div>
+  <form class="card-body" method="post" action="/requisitions/{{ req.id }}/retire">
+    <p class="muted small">
+      Put in what you actually spent on each line and attach the receipts.
+      Anything left over goes back into the bank and comes off the expense;
+      anything you spent over is paid back to you.
+    </p>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Line</th><th class="num">You were given</th>
+          <th class="num">You actually spent</th></tr></thead>
+        <tbody>
+          {% for l in req.lines %}
+          <tr>
+            <td>{{ l.description }}
+              <div class="muted small">{{ l.account.name if l.account }}</div></td>
+            <td class="num">{{ paid_shares.get(l.id, 0)|money }}</td>
+            <td><input class="num" name="spent_{{ l.id }}"
+                       value="{{ paid_shares.get(l.id, 0)|amount }}"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot><tr><th>Total given</th><th class="num">{{ req.paid_amount|money }}</th>
+          <th></th></tr></tfoot>
+      </table>
+    </div>
+    <div class="field-row" style="margin-top:.75rem">
+      <div class="field"><label for="rd">Date</label>
+        <input id="rd" type="date" name="date" value="{{ today().isoformat() }}"></div>
+      <div class="field"><label for="rb">Balance in or out of</label>
+        <select id="rb" name="bank_account_id">
+          {% for b in banks %}
+          <option value="{{ b.id }}" {{ 'selected' if b.id == req.bank_account_id }}>{{ b.name }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field" style="flex:2"><label for="rn">Note</label>
+        <input id="rn" name="note" placeholder="e.g. Two drums at {{ 88000_00|money }} each, receipts attached"></div>
+    </div>
+    <button class="btn btn-primary" type="submit">File the retirement</button>
+    <span class="muted small">Attach the receipts below first if you have not already.</span>
+  </form>
+</div>
+{% endif %}
+
+{% if req.status == 'RETIRED' and can(user, 'admin') %}
+<div class="card no-print"><div class="card-body">
+  <form method="post" action="/requisitions/{{ req.id }}/reopen"
+        onsubmit="return confirm('Reopen this retirement? The correcting entry is reversed and it goes back to being unretired.')">
+    <button class="btn" type="submit">Reopen the retirement</button>
+    <span class="muted small">If the figures were filed wrongly.</span>
+  </form>
+</div></div>
+{% endif %}
+
+{# ------------------------------------------------------------------ trail #}
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Who has seen it</h3></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>When</th><th>What happened</th><th>Who</th></tr></thead>
+        <tbody>
+          {% for e in req.events %}
+          <tr>
+            <td class="small nowrap">{{ e.at.strftime('%d %b %Y') }}
+              <div class="muted small">{{ e.at.strftime('%H:%M') }}</div></td>
+            <td>
+              {% if e.action == 'SUBMIT' %}Sent for approval
+              {% elif e.action == 'RESUBMIT' %}Corrected and sent again
+              {% elif e.action == 'MANAGER_OK' %}Approved by the manager
+              {% elif e.action == 'DIRECTOR_OK' %}Approved by a director
+              {% elif e.action == 'REJECT' %}<span class="neg">Sent back</span>
+              {% elif e.action == 'PAID' %}Money released
+              {% elif e.action == 'RETIRED' %}Retired
+              {% elif e.action == 'WITHDRAW' %}Withdrawn
+              {% elif e.action == 'REOPENED' %}Retirement reopened
+              {% else %}{{ e.action|lower }}{% endif %}
+              {% if e.amount %}<span class="muted"> · {{ e.amount|money }}</span>{% endif %}
+              {% if e.note %}<div class="muted small">“{{ e.note }}”</div>{% endif %}
+            </td>
+            <td class="small">{{ e.by_name or '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="empty">Nothing yet — it has not been sent.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Where it went</h3></div>
+    <div class="card-body">
+      <dl class="detail">
+        <dt>Raised by</dt><dd>{{ req.raised_by.display_name }}
+          {% if req.raised_by.job_title %}<div class="muted small">{{ req.raised_by.job_title }}</div>{% endif %}</dd>
+        <dt>Manager</dt><dd>{{ req.manager.display_name if req.manager else '—' }}
+          {% if req.manager_approved_at %}
+          <div class="muted small">Approved {{ req.manager_approved_at|dt }}
+            {%- if req.manager_note %} — “{{ req.manager_note }}”{% endif %}</div>{% endif %}</dd>
+        {% if req.director_approved_at or (limit and req.total > limit) %}
+        <dt>Director</dt><dd>
+          {% if req.director_approved_by %}{{ req.director_approved_by.display_name }}
+            <div class="muted small">Approved {{ req.director_approved_at|dt }}
+              {%- if req.director_note %} — “{{ req.director_note }}”{% endif %}</div>
+          {% else %}Waiting{% endif %}</dd>
+        {% endif %}
+        {% if req.paid_at %}
+        <dt>Paid by</dt><dd>{{ req.paid_by.display_name if req.paid_by }}
+          <div class="muted small">{{ req.paid_on|dt }} from
+            {{ req.bank_account.name if req.bank_account }}</div></dd>
+        <dt>Sent to</dt><dd>{{ req.paid_to_account_name }}
+          <div class="muted small">{{ req.paid_to_bank }} {{ req.paid_to_account_no }}</div></dd>
+        {% endif %}
+        {% if payment_entry %}
+        <dt>Payment entry</dt><dd><a href="/journals/{{ payment_entry.id }}">{{ payment_entry.number }}</a></dd>
+        {% endif %}
+        {% if req.retired_on %}
+        <dt>Retired</dt><dd>{{ req.retired_on|dt }}
+          {% if req.retirement_note %}<div class="muted small">{{ req.retirement_note }}</div>{% endif %}</dd>
+        {% endif %}
+        {% if retirement_entry %}
+        <dt>Retirement entry</dt><dd><a href="/journals/{{ retirement_entry.id }}">{{ retirement_entry.number }}</a></dd>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+</div>
+
+{{ attachments_panel(user, 'REQUISITION', req.id, files,
+                     can_edit=(req.raised_by_id == user.id or can(user, 'entry'))) }}
+{% endblock %}

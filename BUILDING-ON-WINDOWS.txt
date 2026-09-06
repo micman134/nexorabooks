@@ -1,0 +1,377 @@
+===============================================================================
+ BUILDING NEXORA BOOKS INTO A WINDOWS PROGRAM
+ Step by step, from a bare Windows computer to an installer you can hand out
+===============================================================================
+
+WHAT YOU ARE MAKING, AND WHY
+
+Right now, using Nexora Books means unzipping a folder, installing Python and
+running a batch file. Nobody who has paid for software will do that. At the end
+of this you will have two things:
+
+    dist\NexoraBooks\NexoraBooks.exe        the program itself
+    dist\NexoraBooks-2.11.2-Setup.exe        an installer you can send people
+
+The installer puts the program in Program Files, makes the Start menu and
+desktop shortcuts, offers to open the Windows firewall so staff on the office
+network can reach it, and appears in "Apps & features" like any other program.
+It never touches the customer's books when it uninstalls.
+
+Set aside half a day the first time. Most of that is waiting.
+
+One thing to hold on to before you start: **step 5 runs the whole test suite on
+Windows for the first time.** That is not a formality. Every bug found this
+month lived somewhere Windows differs from the machine the software was written
+on. If those tests fail, the build has done its most valuable work, and the
+right response is to send me the failure — not to skip past it.
+
+
+-------------------------------------------------------------------------------
+ BEFORE YOU START
+-------------------------------------------------------------------------------
+
+You need:
+
+  * A Windows 10 or Windows 11 computer, 64-bit.
+  * About 5 GB of free disk space.
+  * An administrator account on that machine (for installing Python and Inno
+    Setup, and later for testing the installer).
+  * An internet connection, for the two downloads and for pip.
+  * The Nexora Books 2.11.2 zip.
+
+You do NOT need a code-signing certificate yet. Build unsigned first, prove it
+works, then buy the certificate and rebuild. Signing an installer that turns out
+to be broken wastes a week of certificate validation.
+
+A note on where you put things. Do not build inside OneDrive, Desktop or
+Documents if those folders sync to the cloud — the syncing fights with the build
+and produces confusing failures. Use a short path at the root of C:, for example
+
+    C:\NexoraBuild\
+
+
+-------------------------------------------------------------------------------
+ STEP 1 — INSTALL PYTHON               (10 minutes, mostly downloading)
+-------------------------------------------------------------------------------
+
+1.1  Go to  https://www.python.org/downloads/  and download the current
+     Windows installer (3.11 or newer; 3.12 or 3.13 are fine).
+
+1.2  Run it. On the FIRST screen there is a tick box at the bottom:
+
+         [x] Add python.exe to PATH
+
+     TICK IT. This is the single most common thing to get wrong, and getting it
+     wrong means every later step says "Python was not found".
+
+1.3  Choose "Install Now" and let it finish.
+
+1.4  Check it. Press the Windows key, type  cmd , press Enter, and in the black
+     window type:
+
+         python --version
+
+     You should see something like  Python 3.13.2 . If instead you get
+     "'python' is not recognized", Python was installed without the PATH box
+     ticked. Run the installer again, choose Modify, and tick it.
+
+     If the Microsoft Store opens instead of printing a version, that is a
+     Windows stub. Go to Settings > Apps > Advanced app settings > App execution
+     aliases and switch off the two entries called "python.exe" and
+     "python3.exe", then try again.
+
+
+-------------------------------------------------------------------------------
+ STEP 2 — INSTALL INNO SETUP           (5 minutes)
+-------------------------------------------------------------------------------
+
+Inno Setup is the free tool that turns the built program into a proper Windows
+installer. Without it you still get a working program folder, but no Setup.exe.
+
+2.1  Go to  https://jrsoftware.org/isdl.php
+
+2.2  Download the current stable Inno Setup and run it. Accept the defaults.
+
+2.3  Nothing to configure. The build script finds it by itself, whichever
+     version you installed - 6, 7, or whatever comes next. (An earlier
+     version of the script looked only for a folder named "Inno Setup 6"
+     and told people with version 7 that it "was not found".)
+
+
+-------------------------------------------------------------------------------
+ STEP 3 — PUT THE SOURCE SOMEWHERE SENSIBLE     (2 minutes)
+-------------------------------------------------------------------------------
+
+3.1  Make the folder  C:\NexoraBuild
+
+3.2  Copy the Nexora Books zip into it.
+
+3.3  Right-click the zip, choose "Extract All...", and extract into
+     C:\NexoraBuild . You should end up with
+
+         C:\NexoraBuild\NexoraBooks-2.11.2\
+
+     and inside that: app, tests, build_windows.bat, and the rest.
+
+3.4  IMPORTANT — check Windows has not blocked the files. Right-click the zip
+     BEFORE extracting; if the properties window has an "Unblock" tick box at
+     the bottom, tick it and press OK, then extract. Files downloaded from the
+     internet are sometimes marked in a way that makes the build fail with
+     unhelpful errors.
+
+3.5  Close every copy of Nexora Books that may be running from earlier testing.
+     The build does not need the program stopped, but the tests start their own
+     web servers and a stray copy can confuse the picture.
+
+
+-------------------------------------------------------------------------------
+ STEP 4 — RUN THE BUILD                (30 minutes to an hour, mostly waiting)
+-------------------------------------------------------------------------------
+
+4.1  Open  C:\NexoraBuild\NexoraBooks-2.11.2\  in File Explorer.
+
+4.2  Double-click  build_windows.bat
+
+     A black window opens. Leave it alone. It will tell you what it is doing at
+     each of six stages:
+
+         Version to build: 2.11.2
+         [1/6] Creating a clean build environment...
+         [2/6] Installing what Nexora Books needs...
+         [3/6] Installing the desktop window and packaging tools...
+         [4/6] Running the tests on THIS computer before packaging anything...
+         [5/6] Packaging the application...
+         [6/6] Building the installer...
+
+4.3  During stage 4, Windows may pop up a firewall prompt saying Python wants
+     to accept connections. Choose PRIVATE NETWORKS and allow it. Several tests
+     start a small web server for a moment; without this they will fail.
+
+4.4  Stage 4 runs the tests, one per processor core, and prints a long line
+     of dots. Expect well under ten minutes on a modern machine; about
+     twenty-five if the parallel runner could not be installed. This
+     is the part worth waiting for. Do not close the window.
+
+4.5  At stage 3 you may see "the desktop window could not be installed".
+     That is not a failure. It means Nexora Books will open in your normal
+     browser rather than in a window of its own — the same program, the same
+     books. The build carries on by itself.
+
+4.6  Your antivirus may object during stage 5. Programs built this way are
+     frequently flagged by antivirus software for no reason other than how they
+     are packaged — it is one of the reasons a signing certificate is worth
+     buying. If your antivirus quarantines something, restore it and add
+     C:\NexoraBuild to its exclusions, then run the build again.
+
+4.7  When it finishes you will see:
+
+         Done.
+         Application:  dist\NexoraBooks\NexoraBooks.exe
+         Installer:    dist\NexoraBooks-2.11.2-Setup.exe
+
+         NOT SIGNED. Windows will warn the first person who runs it...
+
+     That last warning is expected for now. Signing comes later.
+
+
+-------------------------------------------------------------------------------
+ STEP 5 — IF THE TESTS FAIL
+-------------------------------------------------------------------------------
+
+This is a real possibility and it is a good outcome, not a bad one. The build
+stops, packages nothing, and prints the failures.
+
+DO NOT try to skip the tests. A test that passes on my machine and fails on
+yours has found a genuine difference between Windows and everything else, which
+is exactly the class of bug that has bitten you four times this month.
+
+What to do:
+
+  5.1  Scroll up in the black window to find the first line that starts with
+       FAILED or ERROR.
+
+  5.2  Right-click the title bar of the window > Edit > Select All, then
+       Edit > Copy. That copies everything in the window.
+
+  5.3  Paste it to me. Include the last thirty lines at minimum — the summary at
+       the bottom names every test that failed.
+
+  5.4  Wait for a fix rather than working around it. If a fix will take a while
+       and you need something to demonstrate in the meantime, say so and I will
+       tell you whether that particular failure is safe to build past.
+
+
+-------------------------------------------------------------------------------
+ STEP 6 — TEST THE PROGRAM ON THE BUILD MACHINE     (10 minutes)
+-------------------------------------------------------------------------------
+
+Before you install anything, check the built program runs.
+
+6.1  Go to  C:\NexoraBuild\NexoraBooks-2.11.2\dist\NexoraBooks\
+
+6.2  Double-click  NexoraBooks.exe
+
+6.3  A window should open with Nexora Books in it, and a black console window
+     behind it showing the network address. If the window does not appear but
+     your browser opens instead, that is fine and expected on some machines —
+     the desktop window is a convenience, the browser is the same program.
+
+6.4  Check the version. Bottom of the sidebar, under the company name. It must
+     say 2.11.2. If it says something older, an older copy is still running —
+     close everything, check Task Manager, and try again.
+
+6.5  Close it.
+
+
+-------------------------------------------------------------------------------
+ STEP 7 — TEST THE INSTALLER ON A DIFFERENT COMPUTER   (30 minutes)
+-------------------------------------------------------------------------------
+
+This is the step that actually matters, and the one people skip. The build
+machine has Python on it. Your customers do not. A program that only runs where
+it was built is not a product.
+
+Find a second Windows computer that has never had Python or Nexora Books on it.
+A colleague's laptop is ideal. A fresh Windows virtual machine also works.
+
+7.1  Copy  dist\NexoraBooks-2.11.2-Setup.exe  to that computer on a flash drive.
+
+7.2  Double-click it. Because it is not signed yet, Windows will show a blue box:
+
+         "Windows protected your PC"
+
+     Click  More info , then  Run anyway . Remember this screen — it is exactly
+     what your customers would see, and it is the reason for buying a
+     certificate.
+
+7.3  Walk the installer through. It will show the licence agreement (note that
+     it still has square brackets in it where your business details go — that is
+     on the list for later), offer a desktop shortcut, and offer to open the
+     firewall.
+
+7.4  Let it start the program at the end.
+
+Then work through this list on that clean machine. Tick each one:
+
+     [ ] It starts, and the sidebar says Nexora Books 2.11.2
+     [ ] You can sign in as admin / admin123 and it makes you change the password
+     [ ] Settings > Company details saves your country and currency
+     [ ] Create a customer, raise an invoice, post it, and print the PDF
+     [ ] Settings > Diagnostics shows a sensible data folder under AppData
+     [ ] Settings > Access from other computers shows a real 192.168.x.x address
+     [ ] Open that address in a browser on your phone or another computer,
+         on the same Wi-Fi, and sign in
+     [ ] Settings > Backup and restore takes a backup
+     [ ] Start menu > Nexora Books > Reset two-factor sign-in opens and lists
+         the company (press Enter to leave without changing anything)
+     [ ] Uninstall from Apps & features, then reinstall, and confirm the
+         invoice you raised is STILL THERE
+
+That last one is the most important test on the page. The uninstaller must never
+take a customer's accounts with it.
+
+
+-------------------------------------------------------------------------------
+ STEP 8 — PUT YOUR OWN PRICES AND BANK DETAILS IN     (15 minutes)
+-------------------------------------------------------------------------------
+
+Everything a customer sees on Settings > Licence — the price per user, your
+bank account, your WhatsApp number — is compiled into the build. It lives in
+one file:
+
+    app\store.py
+
+Open it in Notepad and fill in three sections:
+
+    SELLER      your business name, email, phone and WhatsApp number
+    PAYMENT     the bank account the money goes to
+    BANDS       the price per user per year, at each size
+
+Then change this line near the top of the price section:
+
+    PRICES_ARE_EXAMPLES = True      ->      False
+
+While that says True, every customer's licence screen carries a yellow box
+telling them the prices are not real. That box exists so YOU find the mistake
+on your own machine rather than a customer finding it on theirs — but it must
+be switched off before you send a build to anybody.
+
+Build again after changing it. Prices are part of the program, not a setting,
+so a price change means a new build and a new version number.
+
+
+-------------------------------------------------------------------------------
+ STEP 9 — WHEN THE CERTIFICATE ARRIVES (LATER)
+-------------------------------------------------------------------------------
+
+Nothing here needs doing now. When you have bought the OV certificate:
+
+8.1  Open  installer\NexoraBooks.iss  in Notepad and change these two lines to
+     your real business details. AppPublisher must match the business name on
+     the certificate exactly, because Windows shows them side by side.
+
+         #define AppPublisher   "Nexora Books"
+         #define AppUrl         "https://example.com/nexora-books"
+
+8.2  Open  build_windows.bat  in Notepad and put your certificate's thumbprint
+     on this line:
+
+         set SIGN_THUMBPRINT=
+
+8.3  Run the build again. Both the program and the installer are signed
+     automatically, and the "unknown publisher" message becomes your business
+     name.
+
+
+-------------------------------------------------------------------------------
+ WHEN SOMETHING GOES WRONG
+-------------------------------------------------------------------------------
+
+ "Python was not found"
+     The PATH box was not ticked in step 1.2. Run the Python installer again,
+     choose Modify, tick it, restart the black window.
+
+ "'pip' is not recognized" or pip errors about SSL
+     Your network is blocking pypi.org. Try a different connection — a phone
+     hotspot is usually enough.
+
+ The build stops at stage 2 or 3 with a compiler error
+     Send me the error. Nexora Books deliberately has no dependency that needs a
+     compiler, so this means something has changed upstream and I need to pin it.
+
+ Stage 5 finishes but there is no NexoraBooks.exe
+     Antivirus almost certainly took it. See 4.5.
+
+ "Inno Setup was not found"
+     Step 2 was skipped, or it installed somewhere the script does not look:
+     Program Files, Program Files (x86), your own Programs folder, anywhere
+     on the PATH, or wherever Windows has it registered. The program in
+     dist\NexoraBooks\ still works — you can zip that folder and hand it out
+     while you sort the installer.
+
+ I only need the installer; must I sit through the tests again?
+     No. If the code has not changed since a build that passed, run
+     build_installer_only.bat instead. It goes straight to Inno Setup and
+     finishes in under a minute. It refuses to run unless the application is
+     already built, so it cannot produce an installer for untested code.
+     When the code HAS changed, use build_windows.bat and let the tests run.
+
+ The installer builds but is called 0.0.0-hand-built
+     You compiled the .iss directly instead of running build_windows.bat. Run
+     the batch file; it passes the version in.
+
+ Anything else
+     Copy the whole black window (right-click the title bar > Edit > Select All,
+     then Edit > Copy) and send it. Also send Settings > Diagnostics from the
+     built program if it starts at all. Those two together have solved every
+     problem this month, usually in about a minute.
+
+
+-------------------------------------------------------------------------------
+ ONE LAST THING
+-------------------------------------------------------------------------------
+
+The folder you build from must never contain  seller\private-key.json . The
+zips I send you exclude it, so as long as you build from one of those you are
+safe. That file is what makes a licence real: anybody holding it can issue
+licences in your name, and it must live only on a machine you control.
